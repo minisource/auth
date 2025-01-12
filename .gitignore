@@ -23,3 +23,16 @@ go.work.sum
 
 # env file
 .env
+
+bin/*
+*bin*
+
+config/*.yml
+
+.task
+.task/*
+
+*.log
+logs
+logs/*
+cmd/server/*bin*
