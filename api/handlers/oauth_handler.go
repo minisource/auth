@@ -1,13 +1,11 @@
 package handlers
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v2"
 	"github.com/minisource/auth/api/dto"
 	"github.com/minisource/auth/config"
 	"github.com/minisource/auth/services"
-	helper "github.com/minisource/common_go/http/helpers"
+	"github.com/minisource/common_go/http/helper"
 )
 
 type OAuthHandler struct {
@@ -28,22 +26,28 @@ func NewOAuthHandler(cfg *config.Config) *OAuthHandler {
 // @Success 200 {object} helper.BaseHttpResponse "Success"
 // @Failure 400 {object} helper.BaseHttpResponse "Failed"
 // @Router /v1/oauth/ [post]
-func (h *OAuthHandler) Create(c *gin.Context) {
+func (h *OAuthHandler) Create(c *fiber.Ctx) error {
 	req := new(dto.CreateOAuthClientRequest)
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest,
-			helper.GenerateBaseResponseWithValidationError(nil, false, helper.ValidationError, err))
-		return
-	}
-	client, err := h.service.CreateClient(req)
-	if err != nil {
-		c.AbortWithStatusJSON(helper.TranslateErrorToStatusCode(err),
-			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err))
-		return
+
+	// Parse the request body
+	if err := c.BodyParser(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			helper.GenerateBaseResponseWithValidationError(nil, false, helper.ValidationError, err),
+		)
 	}
 
-	c.JSON(http.StatusCreated, helper.GenerateBaseResponse(client, true, helper.Success))
+	// Call the service to create the OAuth client
+	client, err := h.service.CreateClient(req)
+	if err != nil {
+		return c.Status(helper.TranslateErrorToStatusCode(err)).JSON(
+			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err),
+		)
+	}
+
+	// Return the created client
+	return c.Status(fiber.StatusCreated).JSON(
+		helper.GenerateBaseResponse(client, true, helper.Success),
+	)
 }
 
 // GetAll OAuthClients godoc
@@ -55,99 +59,118 @@ func (h *OAuthHandler) Create(c *gin.Context) {
 // @Success 200 {object} helper.BaseHttpResponse "Success"
 // @Failure 400 {object} helper.BaseHttpResponse "Failed"
 // @Router /v1/oauth/ [get]
-func (h *OAuthHandler) GetAll(c *gin.Context) {
+func (h *OAuthHandler) GetAll(c *fiber.Ctx) error {
+	// Call the service to get all OAuth clients
 	clients, err := h.service.GetAllClients()
 	if err != nil {
-		c.AbortWithStatusJSON(helper.TranslateErrorToStatusCode(err),
-			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err))
-		return
+		return c.Status(helper.TranslateErrorToStatusCode(err)).JSON(
+			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err),
+		)
 	}
 
-	c.JSON(http.StatusOK, helper.GenerateBaseResponse(clients, true, helper.Success))
+	// Return the list of clients
+	return c.Status(fiber.StatusOK).JSON(
+		helper.GenerateBaseResponse(clients, true, helper.Success),
+	)
 }
 
 // Delete OAuthClient godoc
 // @Summary Delete OAuthClient
-// @Description Delete OAuthClient
+// @Description Delete OAuthClient by ID
 // @Tags OAuthClient
 // @Accept  json
 // @Produce  json
-// @Param id path string true "Id"
+// @Param id path string true "OAuthClient ID"
 // @Success 200 {object} helper.BaseHttpResponse "Success"
 // @Failure 400 {object} helper.BaseHttpResponse "Failed"
-// @Router /v1/oauth/id [delete]
-func (h *OAuthHandler) Delete(c *gin.Context) {
-	id := c.Params.ByName("id")
+// @Router /v1/oauth/{id} [delete]
+func (h *OAuthHandler) Delete(c *fiber.Ctx) error {
+	// Get the ID from the URL parameters
+	id := c.Params("id")
 	if id == "" {
-		c.AbortWithStatusJSON(http.StatusNotFound,
-			helper.GenerateBaseResponse(nil, false, helper.ValidationError))
-		return
+		return c.Status(fiber.StatusNotFound).JSON(
+			helper.GenerateBaseResponse(nil, false, helper.ValidationError),
+		)
 	}
 
+	// Call the service to delete the OAuth client
 	err := h.service.DeleteClient(id)
 	if err != nil {
-		c.AbortWithStatusJSON(helper.TranslateErrorToStatusCode(err),
-			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err))
-		return
+		return c.Status(helper.TranslateErrorToStatusCode(err)).JSON(
+			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err),
+		)
 	}
 
-	c.JSON(http.StatusOK, helper.GenerateBaseResponse(nil, true, 0))
+	// Return a success response
+	return c.Status(fiber.StatusOK).JSON(
+		helper.GenerateBaseResponse(nil, true, 0),
+	)
 }
 
 // GetOAuthClient godoc
 // @Summary Get a OAuthClient
-// @Description Get a OAuthClient
+// @Description Get a OAuthClient by ID
 // @Tags OAuthClient
 // @Accept json
-// @produces json
-// @Param id path string true "Id"
+// @Produce json
+// @Param id path string true "OAuthClient ID"
 // @Success 200 {object} helper.BaseHttpResponse{result=dto.GetOAuthClientResponse} "GetOAuthClient response"
 // @Failure 400 {object} helper.BaseHttpResponse "Bad request"
 // @Failure 404 {object} helper.BaseHttpResponse "Not found"
 // @Router /v1/oauth/{id} [get]
-func (h *OAuthHandler) GetById(c *gin.Context) {
-	id := c.Params.ByName("id")
+func (h *OAuthHandler) GetById(c *fiber.Ctx) error {
+	// Get the ID from the URL parameters
+	id := c.Params("id")
 	if id == "" {
-		c.AbortWithStatusJSON(http.StatusNotFound,
-			helper.GenerateBaseResponse(nil, false, helper.ValidationError))
-		return
+		return c.Status(fiber.StatusNotFound).JSON(
+			helper.GenerateBaseResponse(nil, false, helper.ValidationError),
+		)
 	}
 
+	// Call the service to get the OAuth client
 	client, err := h.service.GetClient(id)
 	if err != nil {
-		c.AbortWithStatusJSON(helper.TranslateErrorToStatusCode(err),
-			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err))
-		return
+		return c.Status(helper.TranslateErrorToStatusCode(err)).JSON(
+			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err),
+		)
 	}
 
-	c.JSON(http.StatusOK, helper.GenerateBaseResponse(client, true, 0))
+	// Return the OAuth client
+	return c.Status(fiber.StatusOK).JSON(
+		helper.GenerateBaseResponse(client, true, 0),
+	)
 }
 
 // GenerateOAuthToken godoc
-// @Summary Get a OAuthClientToken
-// @Description Get a OAuthClientToken
+// @Summary Generate an OAuthClientToken
+// @Description Generate an OAuthClientToken
 // @Tags OAuthClientToken
 // @Accept json
-// @produces json
+// @Produce json
 // @Failure 400 {object} helper.BaseHttpResponse "Bad request"
 // @Failure 404 {object} helper.BaseHttpResponse "Not found"
 // @Router /v1/oauth/GenerateToken [post]
-func (h *OAuthHandler) GenerateToken(c *gin.Context) {
+func (h *OAuthHandler) GenerateToken(c *fiber.Ctx) error {
+	// Parse the request body
 	req := new(dto.GenerateTokenRequest)
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest,
-			helper.GenerateBaseResponseWithValidationError(nil, false, helper.ValidationError, err))
-		return
-	}
-	token, err := h.service.GenerateToken(req)
-	if err != nil {
-		c.AbortWithStatusJSON(helper.TranslateErrorToStatusCode(err),
-			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err))
-		return
+	if err := c.BodyParser(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			helper.GenerateBaseResponseWithValidationError(nil, false, helper.ValidationError, err),
+		)
 	}
 
-	c.JSON(http.StatusOK, helper.GenerateBaseResponse(token, true, 0))
+	// Call the service to generate the token
+	token, err := h.service.GenerateToken(req)
+	if err != nil {
+		return c.Status(helper.TranslateErrorToStatusCode(err)).JSON(
+			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err),
+		)
+	}
+
+	// Return the generated token
+	return c.Status(fiber.StatusOK).JSON(
+		helper.GenerateBaseResponse(token, true, 0),
+	)
 }
 
 // ValidateToken godoc
@@ -155,24 +178,29 @@ func (h *OAuthHandler) GenerateToken(c *gin.Context) {
 // @Description ValidateToken
 // @Tags ValidateToken
 // @Accept json
-// @produces json
+// @Produce json
 // @Failure 400 {object} helper.BaseHttpResponse "Bad request"
 // @Failure 404 {object} helper.BaseHttpResponse "Not found"
 // @Router /v1/oauth/ValidateToken [post]
-func (h *OAuthHandler) ValidateToken(c *gin.Context) {
+func (h *OAuthHandler) ValidateToken(c *fiber.Ctx) error {
+	// Parse the request body
 	req := new(dto.ValidateTokenRequest)
-	err := c.ShouldBindJSON(&req)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest,
-			helper.GenerateBaseResponseWithValidationError(nil, false, helper.ValidationError, err))
-		return
-	}
-	introspection, err := h.service.ValidateToken(req.Token)
-	if err != nil {
-		c.AbortWithStatusJSON(helper.TranslateErrorToStatusCode(err),
-			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err))
-		return
+	if err := c.BodyParser(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(
+			helper.GenerateBaseResponseWithValidationError(nil, false, helper.ValidationError, err),
+		)
 	}
 
-	c.JSON(http.StatusOK, helper.GenerateBaseResponse(introspection, true, 0))
+	// Call the service to validate the token
+	introspection, err := h.service.ValidateToken(req.Token)
+	if err != nil {
+		return c.Status(helper.TranslateErrorToStatusCode(err)).JSON(
+			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err),
+		)
+	}
+
+	// Return the token introspection result
+	return c.Status(fiber.StatusOK).JSON(
+		helper.GenerateBaseResponse(introspection, true, 0),
+	)
 }

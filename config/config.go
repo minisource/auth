@@ -26,6 +26,7 @@ type ServerConfig struct {
 	InternalPort string `env:"SERVER_INTERNAL_PORT"`
 	ExternalPort string `env:"SERVER_EXTERNAL_PORT"`
 	RunMode      string `env:"SERVER_RUN_MODE"`
+	Name         string `env:"SERVER_NAME"`
 }
 
 type PasswordConfig struct {

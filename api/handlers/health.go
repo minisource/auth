@@ -1,10 +1,8 @@
 package handlers
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
-	helper "github.com/minisource/common_go/http/helpers"
+	"github.com/gofiber/fiber/v2"
+	"github.com/minisource/common_go/http/helper"
 )
 
 type HealthHandler struct {
@@ -23,6 +21,10 @@ func NewHealthHandler() *HealthHandler {
 // @Success 200 {object} helper.BaseHttpResponse "Success"
 // @Failure 400 {object} helper.BaseHttpResponse "Failed"
 // @Router /v1/health/ [get]
-func (h *HealthHandler) Health(c *gin.Context) {
-	c.JSON(http.StatusOK, helper.GenerateBaseResponse("Working!", true, 0))
+func (h *HealthHandler) Health(c *fiber.Ctx) error {
+	// Generate the base response
+	response := helper.GenerateBaseResponse("Working!", true, 0)
+
+	// Return the response as JSON
+	return c.Status(fiber.StatusOK).JSON(response)
 }
