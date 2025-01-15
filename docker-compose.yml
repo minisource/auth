@@ -9,10 +9,18 @@ services:
       - .env
     ports:
       - "5001:5001"
+    restart: unless-stopped
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
   redis:
     image: "redis:alpine"
     ports:
       - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+      start_period: 5s
