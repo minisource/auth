@@ -28,7 +28,7 @@ WORKDIR /app
 # Copy the compiled binary from the builder stage
 COPY --from=builder /app/main .
 
-EXPOSE 80
+EXPOSE 5001
 
 # Command to run the executable
 CMD ["./main"]
