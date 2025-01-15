@@ -29,7 +29,7 @@ func InitServer(cfg *config.Config) {
 	app.Use(middleware.DefaultStructuredLogger(&cfg.Logger)) // Custom structured logger
 	app.Use(middleware.Cors(cfg.Cors.AllowOrigins))
 	app.Use(recover.New())
-	app.Use(middleware.LimitByRequest()) // Custom rate limiter
+	// app.Use(middleware.LimitByRequest()) // Custom rate limiter
 
 	// Register routes
 	RegisterRoutes(app, cfg)
@@ -56,6 +56,10 @@ func RegisterRoutes(r fiber.Router, cfg *config.Config) {
 		// OAuth
 		oauth := v1.Group("/oauth")
 		routers.OAuthRouter(oauth, cfg)
+
+		// Authentication
+		auth := v1.Group("/auth")
+		routers.Authentication(auth, cfg)
 	}
 }
 

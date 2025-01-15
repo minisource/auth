@@ -12,14 +12,15 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Password common.PasswordConfig
-	Redis    cache.RedisConfig
-	Cors     CorsConfig
-	Logger   logging.LoggerConfig
-	Otp      common.OtpConfig
-	JWT      JWTConfig
-	Hydra	 ory.HydraConfig
+	Server             ServerConfig
+	Redis              cache.RedisConfig
+	Cors               CorsConfig
+	Logger             logging.LoggerConfig
+	Otp                common.OtpConfig
+	Hydra              ory.HydraConfig
+	Kratos             ory.KratosConfig
+	OAuthUrl           string `env:"APICLIENTS_OAUTH_URL"`
+	NotificationConfig NotificationConfig
 }
 
 type ServerConfig struct {
@@ -29,13 +30,11 @@ type ServerConfig struct {
 	Name         string `env:"SERVER_NAME"`
 }
 
-type PasswordConfig struct {
-	IncludeChars     bool `env:"PASSWORD_INCLUDE_CHARS"`
-	IncludeDigits    bool `env:"PASSWORD_INCLUDE_DIGITS"`
-	MinLength        int  `env:"PASSWORD_MIN_LENGTH"`
-	MaxLength        int  `env:"PASSWORD_MAX_LENGTH"`
-	IncludeUppercase bool `env:"PASSWORD_INCLUDE_UPPERCASE"`
-	IncludeLowercase bool `env:"PASSWORD_INCLUDE_LOWERCASE"`
+type NotificationConfig struct {
+	Url          string `env:"APICLIENTS_NOTIFICATION_URL"`
+	ClientId     string `env:"APICLIENTS_NOTIFICATION_CLIENTID"`
+	ClientSecret string `env:"APICLIENTS_NOTIFICATION_SECRET"`
+	TemplateOTP  string `env:"APICLIENTS_NOTIFICATION_TEMPLATE_OTP"`
 }
 
 type CorsConfig struct {
@@ -46,13 +45,6 @@ type OtpConfig struct {
 	ExpireTime time.Duration `env:"OTP_EXPIRE_TIME"`
 	Digits     int           `env:"OTP_DIGITS"`
 	Limiter    time.Duration `env:"OTP_LIMITER"`
-}
-
-type JWTConfig struct {
-	AccessTokenExpireDuration  time.Duration `env:"JWT_ACCESS_TOKEN_EXPIRE_DURATION"`
-	RefreshTokenExpireDuration time.Duration `env:"JWT_REFRESH_TOKEN_EXPIRE_DURATION"`
-	Secret                     string        `env:"JWT_SECRET"`
-	RefreshSecret              string        `env:"JWT_REFRESH_SECRET"`
 }
 
 // LoadConfig loads configuration from environment variables

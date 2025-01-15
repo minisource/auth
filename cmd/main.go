@@ -1,9 +1,12 @@
 package main
 
 import (
+	"github.com/minisource/apiclients/notifier"
 	"github.com/minisource/auth/api"
 	"github.com/minisource/auth/config"
 	"github.com/minisource/common_go/db/cache"
+	"github.com/minisource/common_go/http/helper"
+	"github.com/minisource/common_go/http/services"
 	"github.com/minisource/common_go/logging"
 	"github.com/minisource/common_go/ory"
 )
@@ -22,6 +25,15 @@ func main() {
 	}
 
 	ory.InitHydra(&cfg.Hydra)
+	ory.InitKratos(&cfg.Kratos)
+
+	/// api clients
+	// notifier
+	jwtManager := services.NewJWTManager(cfg.NotificationConfig.ClientId, cfg.NotificationConfig.ClientSecret, cfg.OAuthUrl)
+	notifier.NewNotifireService(helper.NewAPIClient(
+		cfg.NotificationConfig.Url,
+		jwtManager,
+	))
 
 	api.InitServer(cfg)
 }

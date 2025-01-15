@@ -4,8 +4,9 @@ go 1.23.4
 
 require (
 	github.com/go-redis/redis/v7 v7.4.1
-	github.com/golang-jwt/jwt v3.2.2+incompatible
-	github.com/minisource/common_go v0.0.4-0.20250113150519-70a469ecb2df
+	github.com/minisource/apiclients v0.0.0-20250115112100-552aa84987ff
+	github.com/minisource/common_go v0.0.4-0.20250115112452-36a4eba92b89
+	github.com/ory/kratos-client-go v1.2.1
 	golang.org/x/oauth2 v0.21.0
 )
 

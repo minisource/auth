@@ -8,7 +8,7 @@ import (
 	"github.com/minisource/common_go/logging"
 	"github.com/minisource/common_go/ory"
 	"github.com/minisource/common_go/service_errors"
-	client "github.com/ory/hydra-client-go"
+	"github.com/ory/hydra-client-go"
 	hydra "github.com/ory/hydra-client-go"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
@@ -85,7 +85,7 @@ func (s *OAuthService) GenerateToken(req *dto.GenerateTokenRequest) (*oauth2.Tok
 	config := clientcredentials.Config{
 		ClientID:     req.ClientID,
 		ClientSecret: req.ClientSecret,
-		TokenURL:     s.cfg.Hydra.PublicUrl + "/oauth2/token",
+		TokenURL:     s.cfg.Hydra.PublicURL + "/oauth2/token",
 		// Scopes:       []string{"read", "write"},
 	}
 
