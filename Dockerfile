@@ -17,7 +17,7 @@ COPY . .
 RUN ls -R /app
 
 # Build the Go app by specifying the correct path for main.go
-RUN go build -o /app/main ./cmd/server/main.go
+RUN go build -o /app/main ./cmd/main.go
 
 # Create a smaller image for running the app
 FROM alpine:latest
