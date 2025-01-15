@@ -2,7 +2,6 @@ package services
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/go-redis/redis/v7"
 	"github.com/minisource/auth/config"
@@ -42,7 +41,7 @@ func (s *OtpService) SetOtp(mobileNumber string, otp string) error {
 	} else if err == nil && res.Used {
 		return &service_errors.ServiceError{EndUserMessage: service_errors.OtpUsed}
 	}
-	err = cache.Set(s.redisClient, key, val, s.cfg.Otp.ExpireTime*time.Second)
+	err = cache.Set(s.redisClient, key, val, s.cfg.Otp.ExpireTime)
 	if err != nil {
 		return err
 	}
@@ -60,7 +59,7 @@ func (s *OtpService) ValidateOtp(mobileNumber string, otp string) error {
 		return &service_errors.ServiceError{EndUserMessage: service_errors.OtpNotValid}
 	} else if err == nil && !res.Used && res.Value == otp {
 		res.Used = true
-		err = cache.Set(s.redisClient, key, res, s.cfg.Otp.ExpireTime*time.Second)
+		err = cache.Set(s.redisClient, key, res, s.cfg.Otp.ExpireTime)
 		if err != nil {
 			return err
 		}

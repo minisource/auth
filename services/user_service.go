@@ -29,9 +29,9 @@ func NewUserService(cfg *config.Config) *UserService {
 
 // https://www.ory.sh/docs/reference/api#tag/identity
 func (s *UserService) GetListUsers() ([]kratos.Identity, error) {
-	identities, _, err := s.Kratos.IdentityAPI.ListIdentities(context.Background()).Execute()
+	identities, httpResponse, err := s.Kratos.IdentityAPI.ListIdentities(context.Background()).Execute()
 	if err != nil {
-		s.logger.Fatalf("Failed to list identities: %v", err)
+		s.logger.Fatalf("Failed to list identities: %v", err, httpResponse)
 		return nil, err
 	}
 
