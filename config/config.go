@@ -7,6 +7,7 @@ import (
 	"github.com/caarlos0/env/v10"
 	"github.com/minisource/common_go/common"
 	"github.com/minisource/common_go/db/cache"
+	"github.com/minisource/common_go/http/services"
 	"github.com/minisource/common_go/logging"
 	"github.com/minisource/common_go/ory"
 )
@@ -21,6 +22,7 @@ type Config struct {
 	Kratos             ory.KratosConfig
 	OAuthUrl           string `env:"APICLIENTS_OAUTH_URL"`
 	NotificationConfig NotificationConfig
+	UserJWT            services.JWTConfig
 }
 
 type ServerConfig struct {

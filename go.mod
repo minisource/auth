@@ -5,7 +5,7 @@ go 1.23.4
 require (
 	github.com/go-redis/redis/v7 v7.4.1
 	github.com/minisource/apiclients v0.0.0-20250115112100-552aa84987ff
-	github.com/minisource/common_go v0.0.4-0.20250115112452-36a4eba92b89
+	github.com/minisource/common_go v0.0.4-0.20250118125737-41477557c7f6
 	github.com/ory/kratos-client-go v1.2.1
 	golang.org/x/oauth2 v0.21.0
 )
@@ -14,6 +14,7 @@ require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/didip/tollbooth/v7 v7.0.2 // indirect
 	github.com/go-pkgz/expirable-cache/v3 v3.0.0 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect

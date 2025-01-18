@@ -19,7 +19,7 @@ var logger = logging.NewLogger(&config.GetConfig().Logger)
 func InitServer(cfg *config.Config) {
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
-		// ErrorHandler: handler.CustomErrorHandler(logger),
+		ErrorHandler: middleware.CustomErrorHandler,
 		AppName:     cfg.Server.Name,
 		JSONEncoder: sonic.Marshal,
 		JSONDecoder: sonic.Unmarshal,

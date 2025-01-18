@@ -192,7 +192,7 @@ func (h *OAuthHandler) ValidateToken(c *fiber.Ctx) error {
 	}
 
 	// Call the service to validate the token
-	introspection, err := h.service.ValidateToken(req.Token)
+	introspection, err := h.service.ValidateToken(*req)
 	if err != nil {
 		return c.Status(helper.TranslateErrorToStatusCode(err)).JSON(
 			helper.GenerateBaseResponseWithError(nil, false, helper.InternalError, err),

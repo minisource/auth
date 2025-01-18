@@ -5,6 +5,7 @@ import (
 
 	"github.com/minisource/auth/api/dto"
 	"github.com/minisource/auth/config"
+	"github.com/minisource/common_go/common"
 	"github.com/minisource/common_go/logging"
 	"github.com/minisource/common_go/ory"
 	"github.com/minisource/common_go/service_errors"
@@ -37,6 +38,7 @@ func (s *OAuthService) CreateClient(req *dto.CreateOAuthClientRequest) (*client.
 		GrantTypes:    []string{"client_credentials"},
 		ResponseTypes: []string{"token"},
 		Scope:         req.Scope,
+		Audience:      req.Audience,
 	}
 
 	createdClient, _, err := s.hydra.AdminApi.CreateOAuth2Client(context.Background()).OAuth2Client(newClient).Execute()
@@ -79,14 +81,13 @@ func (s *OAuthService) GetClient(id string) (*client.OAuth2Client, error) {
 	return client, nil
 }
 
-
 // https://www.ory.sh/docs/hydra/reference/api#tag/oAuth2/operation/oauth2TokenExchange
 func (s *OAuthService) GenerateToken(req *dto.GenerateTokenRequest) (*oauth2.Token, error) {
 	config := clientcredentials.Config{
 		ClientID:     req.ClientID,
 		ClientSecret: req.ClientSecret,
 		TokenURL:     s.cfg.Hydra.PublicURL + "/oauth2/token",
-		// Scopes:       []string{"read", "write"},
+		Scopes:       req.Scopes,
 	}
 
 	token, err := config.Token(context.Background())
@@ -99,8 +100,12 @@ func (s *OAuthService) GenerateToken(req *dto.GenerateTokenRequest) (*oauth2.Tok
 }
 
 // https://www.ory.sh/docs/hydra/reference/api#tag/oAuth2/operation/introspectOAuth2Token
-func (s *OAuthService) ValidateToken(token string) (*hydra.OAuth2TokenIntrospection, error) {
-	introspection, _, err := s.hydra.AdminApi.IntrospectOAuth2Token(context.Background()).Token(token).Execute()
+func (s *OAuthService) ValidateToken(req dto.ValidateTokenRequest) (*hydra.OAuth2TokenIntrospection, error) {
+	introspection, _, err := s.hydra.AdminApi.IntrospectOAuth2Token(context.Background()).Token(req.Token).Execute()
+	if err != nil {
+		return nil, &service_errors.ServiceError{EndUserMessage: service_errors.TokenInvalid, Err: err}
+	}
+	token, err := s.GetClient(*introspection.ClientId)
 	if err != nil {
 		return nil, &service_errors.ServiceError{EndUserMessage: service_errors.TokenInvalid, Err: err}
 	}
@@ -108,6 +113,20 @@ func (s *OAuthService) ValidateToken(token string) (*hydra.OAuth2TokenIntrospect
 	// بررسی اینکه توکن فعال است یا خیر
 	if !introspection.GetActive() {
 		return nil, &service_errors.ServiceError{EndUserMessage: service_errors.UnExpectedError, Err: err}
+	}
+
+	// بررسی Claim‌ها
+	if req.Scop != nil {
+		if introspection.GetScope() != *req.Scop {
+			return nil, &service_errors.ServiceError{EndUserMessage: "Invalid scope for this service", Err: err}
+		}
+	}
+
+	if req.Audience != nil && len(*req.Audience) > 0 {
+		introspectionAud, anyAudExist := token.GetAudienceOk()
+		if !anyAudExist || !common.ContainsAll(introspectionAud, *req.Audience) {
+			return nil, &service_errors.ServiceError{EndUserMessage: "Invalid audience for this service", Err: err}
+		}
 	}
 
 	return introspection, nil
