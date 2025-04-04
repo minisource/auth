@@ -1,0 +1,38 @@
+{
+    "organizations": [
+      {
+        "name": "ExampleOrg",
+        "display_name": "Example Organization",
+        "description": "Sample organization"
+      }
+    ],
+    "applications": [
+      {
+        "name": "example-app",
+        "display_name": "Example App",
+        "description": "Sample application",
+        "organization_name": "ExampleOrg"
+      }
+    ],
+    "roles": [
+      {
+        "name": "admin",
+        "display_name": "Administrator",
+        "description": "Admin role",
+        "organization_name": "ExampleOrg",
+        "application_name": "example-app"
+      }
+    ],
+    "users": [
+      {
+        "username": "admin@example.com",
+        "password": "password",
+        "email": "admin@example.com",
+        "phone": "",
+        "display_name": "Admin User",
+        "organization_name": "ExampleOrg",
+        "application_name": "example-app",
+        "role_name": "admin"
+      }
+    ]
+  }

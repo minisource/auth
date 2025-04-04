@@ -1,34 +1,10 @@
-version: '3.8'
-
+version: '3.1'
 services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - .env
+  casdoor:
+    restart: always
+    image: casbin/casdoor-all-in-one
     ports:
-      - "5001:5001"
-    restart: unless-stopped
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - app_network
-
-  redis:
-    image: "redis:alpine"
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      retries: 5
-      start_period: 5s
-    networks:
-      - app_network
-
-networks:
-  app_network:
-    driver: bridge
+      - '8000:8000'
+    # volumes:
+    #   - ./conf:/conf/
+    #   - ./conf/init_data.json:/init_data.json
