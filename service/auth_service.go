@@ -60,36 +60,37 @@ func GetAuthService() *AuthService {
 }
 
 func (s *AuthService) HealthCheck() error {
-    resp := s.APIClient.Get("/api/health")
-    
-    if resp.Error != nil {
-        return resp.Error
-    }
+	resp := s.APIClient.Get("/api/health")
 
-    if resp.StatusCode != 200 {
-        return fmt.Errorf("health check failed with status %d: %s", 
-            resp.StatusCode, string(resp.Body))
-    }
+	if resp.Error != nil {
+		return resp.Error
+	}
 
-    var healthResp models.HealthCheckResponse
-    if err := json.Unmarshal(resp.Body, &healthResp); err != nil {
-        return fmt.Errorf("failed to parse health check response: %v", err)
-    }
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("health check failed with status %d: %s",
+			resp.StatusCode, string(resp.Body))
+	}
 
-    // Optional: Validate status
-    if healthResp.Status != "ok" {
-        return fmt.Errorf("health check status is not 'ok': %s", healthResp.Status)
-    }
+	var healthResp models.HealthCheckResponse
+	if err := json.Unmarshal(resp.Body, &healthResp); err != nil {
+		return fmt.Errorf("failed to parse health check response: %v", err)
+	}
 
-    return nil
+	// Optional: Validate status
+	if healthResp.Status != "ok" {
+		return fmt.Errorf("health check status is not 'ok': %s", healthResp.Status)
+	}
+
+	return nil
 }
 
 // RegisterUser registers a new user with forbidden status
-func (s *AuthService) RegisterUser(countryCode, phoneNumber string) error {
+func (s *AuthService) RegisterUser(countryCode, phoneNumber string) (*casdoorsdk.User, error) {
+	phone := countryCode + phoneNumber
 	// Fetch the newly created user to get the ID
-	existedUser, _ := s.CasdoorClient.GetUserByPhone(countryCode + phoneNumber)
+	existedUser, _ := s.CasdoorClient.GetUserByPhone(phone)
 	if existedUser != nil {
-		return nil
+		return existedUser, nil
 	}
 
 	// Create user with IsForbidden = true (inactive)
@@ -100,10 +101,15 @@ func (s *AuthService) RegisterUser(countryCode, phoneNumber string) error {
 	}
 	success, err := s.CasdoorClient.AddUser(user)
 	if err != nil || !success {
-		return errors.New("failed to register user in Casdoor")
+		return nil, errors.New("failed to register user in Casdoor")
 	}
 
-	return nil
+	user, err = s.CasdoorClient.GetUserByPhone(phone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user by phone: %v", err)
+	}
+
+	return user, nil
 }
 
 // SendOTP generates and sends an OTP to the user's phone
@@ -125,80 +131,80 @@ func (s *AuthService) SendOTP(phone string) error {
 
 // VerifyOTP verifies the OTP
 func (s *AuthService) VerifyCode(phone, code string) (bool, error) {
-    params := map[string]interface{}{
-        "username": phone,
-        "code":     code,
-    }
+	params := map[string]interface{}{
+		"username": phone,
+		"code":     code,
+	}
 
-    var response map[string]interface{}
+	var response map[string]interface{}
 
-    err := s.APIClient.PostJSON("/api/verify-code", params, &response)
+	err := s.APIClient.PostJSON("/api/verify-code", params, &response)
 
-    if err != nil {
-        return false, fmt.Errorf("request failed: %v", err)
-    }
+	if err != nil {
+		return false, fmt.Errorf("request failed: %v", err)
+	}
 
-    fmt.Println("Verification response:", response)
+	fmt.Println("Verification response:", response)
 
-    if status, ok := response["status"].(string); ok && status == "ok" {
-        return true, nil
-    }
+	if status, ok := response["status"].(string); ok && status == "ok" {
+		return true, nil
+	}
 
-    return false, fmt.Errorf("verification failed: %v", response)
+	return false, fmt.Errorf("verification failed: %v", response)
 }
 
 // GenerateJWT generates a JWT token for the user
 func (s *AuthService) GenerateJWT(username string) (*models.AccessTokenResponse, error) {
 	// Placeholder using Casdoor's token generation
-    formData := map[string]string{
-        "grant_type":    "token",
-        "username":   username,
-        // "client_id":     s.ClientID,
-        // "client_secret": s.ClientSecret,
-    }
+	formData := map[string]string{
+		"grant_type": "token",
+		"username":   username,
+		// "client_id":     s.ClientID,
+		// "client_secret": s.ClientSecret,
+	}
 	resp := s.APIClient.Post("/api/login/oauth/access_token", formData)
 
-    if resp.Error != nil {
-        return nil, resp.Error
-    }
+	if resp.Error != nil {
+		return nil, resp.Error
+	}
 
-    if resp.StatusCode != 200 {
-        return nil, fmt.Errorf("token request failed with status %d: %s", 
-            resp.StatusCode, string(resp.Body))
-    }
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("token request failed with status %d: %s",
+			resp.StatusCode, string(resp.Body))
+	}
 
-    var tokenResp models.AccessTokenResponse
-    if err := json.Unmarshal(resp.Body, &tokenResp); err != nil {
-        return nil, fmt.Errorf("failed to parse token response: %v", err)
-    }
+	var tokenResp models.AccessTokenResponse
+	if err := json.Unmarshal(resp.Body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse token response: %v", err)
+	}
 
-    return &tokenResp, nil
+	return &tokenResp, nil
 }
 
 func (s *AuthService) ValidateToken(accessToken string) (*casdoorsdk.IntrospectTokenResult, error) {
-    // Introspect the token
-    tokenInfo, err := s.CasdoorClient.IntrospectToken(accessToken, "access_token")
-    if err != nil {
-        return nil, fmt.Errorf("token introspection failed: %v", err)
-    }
+	// Introspect the token
+	tokenInfo, err := s.CasdoorClient.IntrospectToken(accessToken, "access_token")
+	if err != nil {
+		return nil, fmt.Errorf("token introspection failed: %v", err)
+	}
 
-    if !tokenInfo.Active {
-        return nil, fmt.Errorf("token is not active")
-    }
+	if !tokenInfo.Active {
+		return nil, fmt.Errorf("token is not active")
+	}
 
-    return tokenInfo, nil
+	return tokenInfo, nil
 }
 
 func (s *AuthService) GetUserInfoByUsername(username string) (*casdoorsdk.User, error) {
-    // Get user by username
-    user, err := s.CasdoorClient.GetUser(username)
-    if err != nil {
-        return nil, fmt.Errorf("failed to get user info: %v", err)
-    }
+	// Get user by username
+	user, err := s.CasdoorClient.GetUser(username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user info: %v", err)
+	}
 
-    if user == nil {
-        return nil, fmt.Errorf("user '%s' not found", username)
-    }
+	if user == nil {
+		return nil, fmt.Errorf("user '%s' not found", username)
+	}
 
-    return user, nil
+	return user, nil
 }
