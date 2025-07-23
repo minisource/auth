@@ -2,17 +2,7 @@ https://docs.simplified.fr/Public/Deployment/deploy
 
 1. add organization: http://localhost:8000/organizations/organization_uaontk
 2. add new provider for sms: http://localhost:8000/providers
-
-
-
-عالی، حالا بیایم با هم یه **سناریوی کامل از راه‌اندازی Casdoor** برای اپلیکیشن خودت تعریف کنیم، طوری که:
-
-* کاربران بتونن ثبت‌نام و ورود کنن (با ایمیل/رمز یا Google مثلاً)
-* توکن JWT بگیرن
-* نقش و سطح دسترسی داشته باشن (مثلاً admin و user)
-* و بشه از این توکن در Backend (مثلاً Go یا ASP.NET Core یا هرچی) استفاده کرد
-
----
+3. create application - remember to remove captcha
 
 ## 🧪 سناریو: "سیستم مدیریت کاربران برای اپلیکیشن من"
 
