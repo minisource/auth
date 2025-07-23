@@ -2,7 +2,6 @@ package auth
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
@@ -84,6 +83,7 @@ func (s *AuthService) HealthCheck() error {
 	return nil
 }
 
+
 // RegisterUser registers a new user with forbidden status
 func (s *AuthService) RegisterUser(countryCode, phoneNumber string) (*casdoorsdk.User, error) {
 	phone := countryCode + phoneNumber
@@ -101,16 +101,17 @@ func (s *AuthService) RegisterUser(countryCode, phoneNumber string) (*casdoorsdk
 	}
 	success, err := s.CasdoorClient.AddUser(user)
 	if err != nil || !success {
-		return nil, errors.New("failed to register user in Casdoor")
+		return nil, err
 	}
 
 	user, err = s.CasdoorClient.GetUserByPhone(phone)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user by phone: %v", err)
+		return nil, err
 	}
 
 	return user, nil
 }
+
 
 // SendOTP generates and sends an OTP to the user's phone
 func (s *AuthService) SendOTP(phone string) error {
@@ -195,6 +196,7 @@ func (s *AuthService) ValidateToken(accessToken string) (*casdoorsdk.IntrospectT
 	return tokenInfo, nil
 }
 
+
 func (s *AuthService) GetUserInfoByUsername(username string) (*casdoorsdk.User, error) {
 	// Get user by username
 	user, err := s.CasdoorClient.GetUser(username)
@@ -211,7 +213,7 @@ func (s *AuthService) GetUserInfoByUsername(username string) (*casdoorsdk.User, 
 
 func (s *AuthService) GetUserInfoByPhone(phoneNumber string) (*casdoorsdk.User, error) {
 	// Get user by phone
-	user, err := s.CasdoorClient.GetUser(phoneNumber)
+	user, err := s.CasdoorClient.GetUserByPhone(phoneNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %v", err)
 	}
