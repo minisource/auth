@@ -209,16 +209,15 @@ func (s *AuthService) GetUserInfoByUsername(username string) (*casdoorsdk.User, 
 	return user, nil
 }
 
-func (s *AuthService) GetUserInfoByPhone(countryCode, phoneNumber string) (*casdoorsdk.User, error) {
-	phone := countryCode + phoneNumber
+func (s *AuthService) GetUserInfoByPhone(phoneNumber string) (*casdoorsdk.User, error) {
 	// Get user by phone
-	user, err := s.CasdoorClient.GetUser(phone)
+	user, err := s.CasdoorClient.GetUser(phoneNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user info: %v", err)
 	}
 
 	if user == nil {
-		return nil, fmt.Errorf("user '%s' not found", phone)
+		return nil, fmt.Errorf("user '%s' not found", phoneNumber)
 	}
 
 	return user, nil
