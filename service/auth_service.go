@@ -3,9 +3,12 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/casdoor/casdoor-go-sdk/casdoorsdk"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/minisource/auth/service/models"
+	"github.com/minisource/common_go/db/cache"
 	"github.com/minisource/common_go/http/helper"
 )
 
@@ -83,7 +86,6 @@ func (s *AuthService) HealthCheck() error {
 	return nil
 }
 
-
 // RegisterUser registers a new user with forbidden status
 func (s *AuthService) RegisterUser(countryCode, phoneNumber string) (*casdoorsdk.User, error) {
 	phone := countryCode + phoneNumber
@@ -111,7 +113,6 @@ func (s *AuthService) RegisterUser(countryCode, phoneNumber string) (*casdoorsdk
 
 	return user, nil
 }
-
 
 // SendOTP generates and sends an OTP to the user's phone
 func (s *AuthService) SendOTP(phone string) error {
@@ -182,6 +183,45 @@ func (s *AuthService) GenerateJWT(username string) (*models.AccessTokenResponse,
 	return &tokenResp, nil
 }
 
+// GenerateJWT generates a JWT token for the service
+func (s *AuthService) GenerateServiceJWT() (*string, error) {
+	if cache.GetRedis() != nil {
+		if token, err := cache.Get[string](cache.GetRedis(), "accessToken_"+s.ClientID); err == nil {
+			return &token, nil
+		}
+	}
+	
+	// Placeholder using Casdoor's token generation
+	formData := map[string]string{
+		"grant_type":    "client_credentials",
+		"client_id":     s.ClientID,
+		"client_secret": s.ClientSecret,
+	}
+	resp := s.APIClient.Post("/api/login/oauth/access_token", formData)
+
+	if resp.Error != nil {
+		return nil, resp.Error
+	}
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("token request failed with status %d: %s",
+			resp.StatusCode, string(resp.Body))
+	}
+
+	var tokenResp models.AccessTokenResponse
+	if err := json.Unmarshal(resp.Body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse token response: %v", err)
+	}
+
+	if cache.GetRedis() != nil {
+		cache.Set(cache.GetRedis(), "accessToken_"+s.ClientID, tokenResp.AccessToken, time.Duration(tokenResp.ExpiresIn)*time.Second)
+	} else {
+		log.Warn("Redis is not available")
+	}
+
+	return &tokenResp.AccessToken, nil
+}
+
 func (s *AuthService) ValidateToken(accessToken string) (*casdoorsdk.IntrospectTokenResult, error) {
 	// Introspect the token
 	tokenInfo, err := s.CasdoorClient.IntrospectToken(accessToken, "access_token")
@@ -195,7 +235,6 @@ func (s *AuthService) ValidateToken(accessToken string) (*casdoorsdk.IntrospectT
 
 	return tokenInfo, nil
 }
-
 
 func (s *AuthService) GetUserInfoByUsername(username string) (*casdoorsdk.User, error) {
 	// Get user by username

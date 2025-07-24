@@ -50,7 +50,6 @@ func TestRegisterUser(t *testing.T) {
 	t.Logf("User registered successfully: %s", user.Name)
 }
 
-
 func TestSendOTP(t *testing.T) {
 	service := newTestAuthService()
 
@@ -89,6 +88,21 @@ func TestGenerateJWT(t *testing.T) {
 	}
 
 	t.Logf("Access token: %s", token.AccessToken)
+}
+
+func TestGenerateServiceJWT(t *testing.T) {
+	service := newTestAuthService()
+
+	token, err := service.GenerateServiceJWT()
+	if err != nil {
+		t.Fatalf("GenerateServiceJWT failed: %v", err)
+	}
+
+	if token == nil {
+		t.Fatal("JWT token is nil or empty")
+	}
+
+	t.Logf("Access token: %s", *token)
 }
 
 func TestValidateToken(t *testing.T) {

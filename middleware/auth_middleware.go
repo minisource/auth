@@ -41,6 +41,7 @@ func Authentication(service *auth.AuthService) fiber.Handler {
 			)
 		}
 
+		c.Set(constants.ClientIdKey, claimMap.ClientId)
 		if username := claimMap.Username; username != "" {
 			c.Set(constants.UsernameKey, username)
 		}

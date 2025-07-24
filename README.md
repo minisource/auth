@@ -3,6 +3,7 @@ https://docs.simplified.fr/Public/Deployment/deploy
 1. add organization: http://localhost:8000/organizations/organization_uaontk
 2. add new provider for sms: http://localhost:8000/providers
 3. create application - remember to remove captcha
+4. in application choose custom jwt and above that add name filed
 
 ## 🧪 سناریو: "سیستم مدیریت کاربران برای اپلیکیشن من"
 
