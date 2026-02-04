@@ -1,0 +1,89 @@
+# Auth Service - Development Docker Compose
+# Usage: docker compose -f docker-compose.dev.yml up -d
+# Note: This only starts infrastructure services, not the app (use go run or air for hot reload)
+
+services:
+  auth-postgres:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-auth}-postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-auth_db}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - auth-postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - auth-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-auth_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  auth-redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-auth}-redis
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - auth-redis-data:/data
+    networks:
+      - auth-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # Optional: Adminer for database management in development
+  adminer:
+    image: adminer:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-auth}-adminer
+    ports:
+      - "8081:8080"
+    networks:
+      - auth-dev-network
+    depends_on:
+      - auth-postgres
+    profiles:
+      - tools
+
+  # Optional: Redis Commander for Redis management
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-auth}-redis-commander
+    environment:
+      REDIS_HOSTS: local:auth-redis:6379
+    ports:
+      - "8082:8081"
+    networks:
+      - auth-dev-network
+    depends_on:
+      - auth-redis
+    profiles:
+      - tools
+
+volumes:
+  auth-postgres-data:
+    driver: local
+  auth-redis-data:
+    driver: local
+
+networks:
+  auth-dev-network:
+    driver: bridge
+    name: minisource-dev

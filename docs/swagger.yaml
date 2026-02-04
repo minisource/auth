@@ -1,0 +1,1742 @@
+basePath: /api/v1
+definitions:
+  github_com_minisource_auth_api_dto.AuthResponse:
+    properties:
+      accessToken:
+        type: string
+      expiresAt:
+        type: string
+      refreshToken:
+        type: string
+      tokenType:
+        type: string
+      user:
+        $ref: '#/definitions/github_com_minisource_auth_api_dto.UserInfo'
+    type: object
+  github_com_minisource_auth_api_dto.ChangePasswordRequest:
+    properties:
+      newPassword:
+        minLength: 8
+        type: string
+      oldPassword:
+        type: string
+    required:
+    - newPassword
+    - oldPassword
+    type: object
+  github_com_minisource_auth_api_dto.CreatePermissionRequest:
+    properties:
+      action:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      resource:
+        type: string
+    required:
+    - action
+    - name
+    - resource
+    type: object
+  github_com_minisource_auth_api_dto.CreateRoleRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      permissionIds:
+        items:
+          type: string
+        type: array
+    required:
+    - name
+    type: object
+  github_com_minisource_auth_api_dto.CreateServiceClientRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      scopes:
+        items:
+          type: string
+        type: array
+    required:
+    - name
+    type: object
+  github_com_minisource_auth_api_dto.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      firstName:
+        type: string
+      isActive:
+        type: boolean
+      lastName:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      phone:
+        type: string
+      roleIds:
+        items:
+          type: string
+        type: array
+      username:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  github_com_minisource_auth_api_dto.ErrorResponse:
+    properties:
+      code:
+        type: integer
+      error:
+        type: string
+      message:
+        type: string
+    type: object
+  github_com_minisource_auth_api_dto.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+      phone:
+        type: string
+    type: object
+  github_com_minisource_auth_api_dto.GoogleAuthURLResponse:
+    properties:
+      url:
+        type: string
+    type: object
+  github_com_minisource_auth_api_dto.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  github_com_minisource_auth_api_dto.LogoutRequest:
+    properties:
+      revokeAll:
+        type: boolean
+    type: object
+  github_com_minisource_auth_api_dto.MessageResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  github_com_minisource_auth_api_dto.RefreshTokenRequest:
+    properties:
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  github_com_minisource_auth_api_dto.RegisterRequest:
+    properties:
+      email:
+        type: string
+      firstName:
+        type: string
+      lastName:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      phone:
+        type: string
+      username:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  github_com_minisource_auth_api_dto.ResetPasswordRequest:
+    properties:
+      code:
+        description: OTP code
+        type: string
+      newPassword:
+        minLength: 8
+        type: string
+      target:
+        description: Email or Phone
+        type: string
+    required:
+    - code
+    - newPassword
+    - target
+    type: object
+  github_com_minisource_auth_api_dto.SendOTPRequest:
+    properties:
+      email:
+        type: string
+      firstName:
+        type: string
+      lastName:
+        type: string
+      phone:
+        type: string
+      type:
+        description: Optional, defaults to "login"
+        enum:
+        - login
+        - email_verification
+        - phone_verification
+        - password_reset
+        type: string
+    type: object
+  github_com_minisource_auth_api_dto.ServiceAuthRequest:
+    properties:
+      clientId:
+        type: string
+      clientSecret:
+        type: string
+    required:
+    - clientId
+    - clientSecret
+    type: object
+  github_com_minisource_auth_api_dto.ServiceAuthResponse:
+    properties:
+      accessToken:
+        type: string
+      expiresIn:
+        type: integer
+      tokenType:
+        type: string
+    type: object
+  github_com_minisource_auth_api_dto.SetPasswordRequest:
+    properties:
+      password:
+        minLength: 8
+        type: string
+    required:
+    - password
+    type: object
+  github_com_minisource_auth_api_dto.UpdatePermissionRequest:
+    properties:
+      action:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      resource:
+        type: string
+    required:
+    - action
+    - name
+    - resource
+    type: object
+  github_com_minisource_auth_api_dto.UpdateProfileRequest:
+    properties:
+      avatar:
+        type: string
+      firstName:
+        type: string
+      lastName:
+        type: string
+    type: object
+  github_com_minisource_auth_api_dto.UpdateRoleRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      permissionIds:
+        items:
+          type: string
+        type: array
+    required:
+    - name
+    type: object
+  github_com_minisource_auth_api_dto.UpdateUserRequest:
+    properties:
+      emailVerified:
+        type: boolean
+      firstName:
+        type: string
+      isActive:
+        type: boolean
+      lastName:
+        type: string
+      phone:
+        type: string
+      phoneVerified:
+        type: boolean
+      roleIds:
+        items:
+          type: string
+        type: array
+    type: object
+  github_com_minisource_auth_api_dto.UserInfo:
+    properties:
+      avatar:
+        type: string
+      email:
+        type: string
+      emailVerified:
+        type: boolean
+      firstName:
+        type: string
+      id:
+        type: string
+      lastName:
+        type: string
+      phone:
+        type: string
+      phoneVerified:
+        type: boolean
+      roles:
+        items:
+          type: string
+        type: array
+      username:
+        type: string
+    type: object
+  github_com_minisource_auth_api_dto.VerifyOTPRequest:
+    properties:
+      code:
+        type: string
+      target:
+        description: Phone or Email
+        type: string
+      type:
+        enum:
+        - login
+        - email_verification
+        - phone_verification
+        - password_reset
+        type: string
+    required:
+    - code
+    - target
+    - type
+    type: object
+  github_com_minisource_auth_internal_models.Permission:
+    properties:
+      action:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      displayName:
+        type: string
+      id:
+        type: string
+      isActive:
+        type: boolean
+      name:
+        type: string
+      resource:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_minisource_auth_internal_models.Role:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      displayName:
+        type: string
+      id:
+        type: string
+      isActive:
+        type: boolean
+      isSystem:
+        description: System roles cannot be deleted
+        type: boolean
+      name:
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/github_com_minisource_auth_internal_models.Permission'
+        type: array
+      tenant:
+        allOf:
+        - $ref: '#/definitions/github_com_minisource_auth_internal_models.Tenant'
+        description: Relationships
+      tenantId:
+        description: nil = system-wide role
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_minisource_auth_internal_models.Session:
+    properties:
+      createdAt:
+        type: string
+      deviceType:
+        type: string
+      expiresAt:
+        type: string
+      id:
+        type: string
+      ipAddress:
+        type: string
+      isActive:
+        type: boolean
+      lastActiveAt:
+        type: string
+      revokedAt:
+        type: string
+      tenantId:
+        description: Tenant context for this session
+        type: string
+      updatedAt:
+        type: string
+      userAgent:
+        type: string
+      userId:
+        type: string
+    type: object
+  github_com_minisource_auth_internal_models.Tenant:
+    properties:
+      billingAddress:
+        description: Billing address
+        type: string
+      billingCycle:
+        type: string
+      contactEmail:
+        description: Contact info
+        type: string
+      contactPhone:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      displayName:
+        type: string
+      domain:
+        description: Custom domain if any
+        type: string
+      id:
+        type: string
+      isDefault:
+        description: Default tenant for the system
+        type: boolean
+      limits:
+        $ref: '#/definitions/github_com_minisource_auth_internal_models.TenantLimits'
+      logo:
+        type: string
+      metadata:
+        type: string
+      name:
+        type: string
+      plan:
+        description: Subscription/Plan info
+        type: string
+      planId:
+        type: string
+      planName:
+        type: string
+      settings:
+        allOf:
+        - $ref: '#/definitions/github_com_minisource_auth_internal_models.TenantSettings'
+        description: JSONB fields with custom types
+      slug:
+        description: Unique identifier for URLs/subdomains
+        type: string
+      status:
+        $ref: '#/definitions/github_com_minisource_auth_internal_models.TenantStatus'
+      trialEndsAt:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  github_com_minisource_auth_internal_models.TenantLimits:
+    properties:
+      maxApiRequests:
+        description: Per month
+        type: integer
+      maxMembersPerRole:
+        type: integer
+      maxRoles:
+        type: integer
+      maxServiceClients:
+        type: integer
+      maxStorageMB:
+        description: Storage limit in MB
+        type: integer
+      maxUsers:
+        type: integer
+    type: object
+  github_com_minisource_auth_internal_models.TenantSettings:
+    properties:
+      allowUserRegistration:
+        type: boolean
+      allowedAuthMethods:
+        items:
+          type: string
+        type: array
+      customBranding:
+        type: boolean
+      maxSessionsPerUser:
+        type: integer
+      passwordPolicy:
+        type: string
+      requireEmailVerified:
+        type: boolean
+      requirePhoneVerified:
+        type: boolean
+      sessionTimeout:
+        description: hours
+        type: integer
+    type: object
+  github_com_minisource_auth_internal_models.TenantStatus:
+    enum:
+    - active
+    - inactive
+    - suspended
+    - trial
+    type: string
+    x-enum-varnames:
+    - TenantStatusActive
+    - TenantStatusInactive
+    - TenantStatusSuspended
+    - TenantStatusTrial
+  github_com_minisource_auth_internal_models.User:
+    properties:
+      avatar:
+        type: string
+      createdAt:
+        type: string
+      email:
+        type: string
+      emailVerified:
+        type: boolean
+      firstName:
+        type: string
+      id:
+        type: string
+      isActive:
+        type: boolean
+      isSuperAdmin:
+        type: boolean
+      lastLoginAt:
+        type: string
+      lastLoginIP:
+        type: string
+      lastName:
+        type: string
+      lockedUntil:
+        type: string
+      metadata:
+        type: string
+      phone:
+        type: string
+      phoneVerified:
+        type: boolean
+      roles:
+        items:
+          $ref: '#/definitions/github_com_minisource_auth_internal_models.Role'
+        type: array
+      tenant:
+        allOf:
+        - $ref: '#/definitions/github_com_minisource_auth_internal_models.Tenant'
+        description: Relationships
+      tenantId:
+        description: Current/default tenant
+        type: string
+      updatedAt:
+        type: string
+      username:
+        type: string
+    type: object
+  github_com_minisource_auth_internal_service.ListUsersResponse:
+    properties:
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+      totalPages:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/github_com_minisource_auth_internal_models.User'
+        type: array
+    type: object
+host: 127.0.0.1:9001
+info:
+  contact:
+    email: support@minisource.com
+    name: API Support
+  description: Authentication and Authorization Service for Minisource
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: Auth Service API
+  version: "1.0"
+paths:
+  /admin/permissions:
+    get:
+      description: List all permissions
+      parameters:
+      - description: Filter by resource
+        in: query
+        name: resource
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_minisource_auth_internal_models.Permission'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List permissions
+      tags:
+      - Admin/Permissions
+    post:
+      consumes:
+      - application/json
+      description: Create a new permission
+      parameters:
+      - description: Permission data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.CreatePermissionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_internal_models.Permission'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create permission
+      tags:
+      - Admin/Permissions
+  /admin/permissions/{id}:
+    delete:
+      description: Delete permission by ID
+      parameters:
+      - description: Permission ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete permission
+      tags:
+      - Admin/Permissions
+    get:
+      description: Get permission details
+      parameters:
+      - description: Permission ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_internal_models.Permission'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get permission by ID
+      tags:
+      - Admin/Permissions
+    put:
+      consumes:
+      - application/json
+      description: Update permission by ID
+      parameters:
+      - description: Permission ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Permission data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.UpdatePermissionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_internal_models.Permission'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update permission
+      tags:
+      - Admin/Permissions
+  /admin/roles:
+    get:
+      description: List all roles
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_minisource_auth_internal_models.Role'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List roles
+      tags:
+      - Admin/Roles
+    post:
+      consumes:
+      - application/json
+      description: Create a new role
+      parameters:
+      - description: Role data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.CreateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_internal_models.Role'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create role
+      tags:
+      - Admin/Roles
+  /admin/roles/{id}:
+    delete:
+      description: Delete role by ID
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete role
+      tags:
+      - Admin/Roles
+    get:
+      description: Get role with permissions
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_internal_models.Role'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get role by ID
+      tags:
+      - Admin/Roles
+    put:
+      consumes:
+      - application/json
+      description: Update role by ID
+      parameters:
+      - description: Role ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Role data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.UpdateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_internal_models.Role'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update role
+      tags:
+      - Admin/Roles
+  /admin/roles/{roleId}/permissions/{permissionId}:
+    delete:
+      description: Remove a permission from a role
+      parameters:
+      - description: Role ID
+        in: path
+        name: roleId
+        required: true
+        type: string
+      - description: Permission ID
+        in: path
+        name: permissionId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Remove permission from role
+      tags:
+      - Admin/Roles
+    post:
+      description: Assign a permission to a role
+      parameters:
+      - description: Role ID
+        in: path
+        name: roleId
+        required: true
+        type: string
+      - description: Permission ID
+        in: path
+        name: permissionId
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Assign permission to role
+      tags:
+      - Admin/Roles
+  /admin/service-clients:
+    post:
+      consumes:
+      - application/json
+      description: Create a new service client for service-to-service auth
+      parameters:
+      - description: Service client data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.CreateServiceClientRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create service client
+      tags:
+      - Service Auth
+  /admin/users:
+    get:
+      description: List all users with pagination
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: pageSize
+        type: integer
+      - description: Search query
+        in: query
+        name: search
+        type: string
+      - description: Filter by role ID
+        in: query
+        name: roleId
+        type: string
+      - description: Filter by active status
+        in: query
+        name: isActive
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_internal_service.ListUsersResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List users
+      tags:
+      - Admin/Users
+    post:
+      consumes:
+      - application/json
+      description: Create a new user
+      parameters:
+      - description: User data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.UserInfo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create user
+      tags:
+      - Admin/Users
+  /admin/users/{id}:
+    delete:
+      description: Soft delete user by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete user
+      tags:
+      - Admin/Users
+    get:
+      description: Get user details by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.UserInfo'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user by ID
+      tags:
+      - Admin/Users
+    put:
+      consumes:
+      - application/json
+      description: Update user by ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.UserInfo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user
+      tags:
+      - Admin/Users
+  /admin/users/{id}/status/{status}:
+    patch:
+      description: Enable or disable user account
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status (enable/disable)
+        in: path
+        name: status
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Toggle user status
+      tags:
+      - Admin/Users
+  /admin/users/{id}/unlock:
+    post:
+      description: Unlock a locked user account
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unlock user
+      tags:
+      - Admin/Users
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Send OTP to email/phone for password reset
+      parameters:
+      - description: Email or phone
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Request password reset
+      tags:
+      - Auth
+  /auth/google:
+    get:
+      description: Get Google OAuth authorization URL
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.GoogleAuthURLResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Get Google OAuth URL
+      tags:
+      - Auth
+  /auth/google/callback:
+    get:
+      consumes:
+      - application/json
+      description: Handle Google OAuth callback
+      parameters:
+      - description: Authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Google OAuth callback
+      tags:
+      - Auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: User login
+      tags:
+      - Auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logout and revoke session
+      parameters:
+      - description: Logout options
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+      security:
+      - BearerAuth: []
+      summary: Logout
+      tags:
+      - Auth
+  /auth/otp/send:
+    post:
+      consumes:
+      - application/json
+      description: Send OTP to phone or email. Auto-registers user if phone doesn't
+        exist.
+      parameters:
+      - description: OTP request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.SendOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Send OTP
+      tags:
+      - Auth
+  /auth/otp/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verify OTP and create session
+      parameters:
+      - description: OTP verification
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.VerifyOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Verify OTP and login
+      tags:
+      - Auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Refresh access and refresh tokens
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.AuthResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Refresh tokens
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user account
+      parameters:
+      - description: Registration data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: User registration
+      tags:
+      - Auth
+  /auth/resend-verification:
+    post:
+      consumes:
+      - application/json
+      description: Resend OTP for email or phone verification
+      parameters:
+      - description: Target for verification
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.SendOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Resend verification code
+      tags:
+      - Auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Verify OTP and set new password
+      parameters:
+      - description: OTP and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Reset password with OTP
+      tags:
+      - Auth
+  /auth/verify-email:
+    post:
+      consumes:
+      - application/json
+      description: Verify email using OTP code
+      parameters:
+      - description: OTP verification
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.VerifyOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Verify email address
+      tags:
+      - Auth
+  /health:
+    get:
+      description: Check if service is healthy
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+      summary: Health check
+      tags:
+      - Health
+  /ready:
+    get:
+      description: Check if service is ready
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+      summary: Readiness check
+      tags:
+      - Health
+  /service/auth:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate service with client credentials
+      parameters:
+      - description: Client credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.ServiceAuthRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ServiceAuthResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      summary: Service authentication
+      tags:
+      - Service Auth
+  /service/validate:
+    get:
+      description: Validate and decode service JWT token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Validate service token
+      tags:
+      - Service Auth
+  /users/me:
+    get:
+      description: Get current user's profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.UserInfo'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - User
+    put:
+      consumes:
+      - application/json
+      description: Update current user's profile
+      parameters:
+      - description: Profile data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.UserInfo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update user profile
+      tags:
+      - User
+  /users/me/linked-accounts:
+    get:
+      description: Get OAuth accounts linked to current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: object
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get linked OAuth accounts
+      tags:
+      - User
+  /users/me/linked-accounts/google:
+    delete:
+      description: Unlink Google OAuth account from current user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Unlink Google account
+      tags:
+      - User
+  /users/me/password:
+    put:
+      consumes:
+      - application/json
+      description: Change current user's password
+      parameters:
+      - description: Password data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Change password
+      tags:
+      - User
+  /users/me/password/set:
+    post:
+      consumes:
+      - application/json
+      description: Set password for users who don't have one (OTP users)
+      parameters:
+      - description: Password data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_minisource_auth_api_dto.SetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.MessageResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set password
+      tags:
+      - User
+  /users/me/sessions:
+    get:
+      description: Get current user's active sessions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/github_com_minisource_auth_internal_models.Session'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_minisource_auth_api_dto.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user sessions
+      tags:
+      - User
+schemes:
+- http
+- https
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
