@@ -15,6 +15,25 @@ import (
 	gormLogger "gorm.io/gorm/logger"
 )
 
+// getEnvOrDefault returns the value of an environment variable or a default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// hashSecretFromEnv reads a secret from environment and returns bcrypt hash
+func hashSecretFromEnv(key, defaultSecret string) string {
+	secret := getEnvOrDefault(key, defaultSecret)
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.DefaultCost)
+	if err != nil {
+		// Fallback to default hash if hashing fails
+		return ""
+	}
+	return string(hashedBytes)
+}
+
 // InitDatabase initializes the PostgreSQL database connection and runs migrations
 func InitDatabase(cfg *config.PostgresConfig, dbCfg *config.DatabaseConfig, logger logging.Logger) (*gorm.DB, error) {
 	logger.Info(logging.Postgres, logging.Startup, "Initializing database connection", map[logging.ExtraKey]interface{}{
@@ -156,7 +175,7 @@ func seedDefaultData(db *gorm.DB, logger logging.Logger) {
 	}
 
 	// Seed default permissions
-	resources := []string{"users", "roles", "permissions", "settings", "sessions", "logs", "notifications"}
+	resources := []string{"users", "roles", "permissions", "settings", "sessions", "logs", "notifications", "storage"}
 	actions := []string{models.ActionCreate, models.ActionRead, models.ActionUpdate, models.ActionDelete, models.ActionList}
 
 	for _, resource := range resources {
@@ -202,21 +221,86 @@ func seedDefaultData(db *gorm.DB, logger logging.Logger) {
 	}
 
 	// Seed service clients for service-to-service authentication
+	// Secrets are read from environment variables for security
 	serviceClients := []models.ServiceClient{
 		{
 			Name:         "Auth Service",
-			ClientID:     "auth-service",
-			ClientSecret: "$2a$10$sDBPhrE/Fu9QwkSzKeL2.eLwFwEBpRhP/rZMsLJcWhNJKJvq9O8ey", // Hashed: "auth-service-secret-key"
+			ClientID:     getEnvOrDefault("SERVICE_AUTH_CLIENT_ID", "auth-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_AUTH_CLIENT_SECRET", "auth-service-secret-key"),
 			Description:  "Auth service for calling notifier to send OTP, emails, etc.",
 			Scopes:       "notifications:send,notifications:read",
 			IsActive:     true,
 		},
 		{
 			Name:         "Notifier Service",
-			ClientID:     "notifier-service",
-			ClientSecret: "$2a$10$mDbadYqGp8iKTlYLwKH7eOsYQtykGiDcH0N/ebkU8VzRMWEap/SPm", // Hashed: "notifier-service-secret-key"
+			ClientID:     getEnvOrDefault("SERVICE_NOTIFIER_CLIENT_ID", "notifier-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_NOTIFIER_CLIENT_SECRET", "notifier-service-secret-key"),
 			Description:  "Notifier service for validating tokens on incoming gRPC/HTTP requests",
 			Scopes:       "tokens:validate",
+			IsActive:     true,
+		},
+		{
+			Name:         "Gateway Service",
+			ClientID:     getEnvOrDefault("SERVICE_GATEWAY_CLIENT_ID", "gateway-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_GATEWAY_CLIENT_SECRET", "gateway-service-secret-key"),
+			Description:  "Gateway service for token validation and routing",
+			Scopes:       "tokens:validate,users:read",
+			IsActive:     true,
+		},
+		{
+			Name:         "Log Service",
+			ClientID:     getEnvOrDefault("SERVICE_LOG_CLIENT_ID", "log-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_LOG_CLIENT_SECRET", "log-service-secret-key"),
+			Description:  "Log service for receiving and storing logs from other services",
+			Scopes:       "tokens:validate,logs:write,logs:read",
+			IsActive:     true,
+		},
+		{
+			Name:         "Scheduler Service",
+			ClientID:     getEnvOrDefault("SERVICE_SCHEDULER_CLIENT_ID", "scheduler-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_SCHEDULER_CLIENT_SECRET", "scheduler-service-secret-key"),
+			Description:  "Scheduler service for job scheduling and execution",
+			Scopes:       "tokens:validate,notifications:send,scheduler:admin",
+			IsActive:     true,
+		},
+		{
+			Name:         "Storage Service",
+			ClientID:     getEnvOrDefault("SERVICE_STORAGE_CLIENT_ID", "storage-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_STORAGE_CLIENT_SECRET", "storage-service-secret-key"),
+			Description:  "Storage service for file management with S3 and local storage",
+			Scopes:       "tokens:validate,storage:read,storage:write,storage:delete,storage:share,storage:admin",
+			IsActive:     true,
+		},
+		{
+			Name:         "Comment Service",
+			ClientID:     getEnvOrDefault("SERVICE_COMMENT_CLIENT_ID", "comment-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_COMMENT_CLIENT_SECRET", "comment-service-secret-key"),
+			Description:  "Comment service for managing comments, replies, reactions across resources",
+			Scopes:       "tokens:validate,notifications:send,comments:read,comments:write,comments:moderate",
+			IsActive:     true,
+		},
+		{
+			Name:         "Feedback Service",
+			ClientID:     getEnvOrDefault("SERVICE_FEEDBACK_CLIENT_ID", "feedback-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_FEEDBACK_CLIENT_SECRET", "feedback-service-secret-key"),
+			Description:  "Feedback service for managing user feedback, voting, and suggestions",
+			Scopes:       "tokens:validate,notifications:send,storage:read,storage:write,feedback:read,feedback:write,feedback:admin",
+			IsActive:     true,
+		},
+		{
+			Name:         "Ticket Service",
+			ClientID:     getEnvOrDefault("SERVICE_TICKET_CLIENT_ID", "ticket-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_TICKET_CLIENT_SECRET", "ticket-service-secret-key"),
+			Description:  "Ticket service for support ticket management",
+			Scopes:       "tokens:validate,notifications:send,storage:read,storage:write,tickets:read,tickets:write,tickets:admin",
+			IsActive:     true,
+		},
+		{
+			Name:         "Payment Service",
+			ClientID:     getEnvOrDefault("SERVICE_PAYMENT_CLIENT_ID", "payment-service"),
+			ClientSecret: hashSecretFromEnv("SERVICE_PAYMENT_CLIENT_SECRET", "payment-service-secret-key"),
+			Description:  "Payment service for payment processing and subscription management",
+			Scopes:       "tokens:validate,notifications:send,payments:read,payments:write,payments:admin,subscriptions:read,subscriptions:write",
 			IsActive:     true,
 		},
 	}

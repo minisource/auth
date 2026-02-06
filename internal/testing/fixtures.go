@@ -15,10 +15,12 @@ func CreateTestUser(db *gorm.DB, tenantID uuid.UUID, email string) (*models.User
 
 	user := &models.User{
 		ID:            uuid.New(),
-		TenantID:      tenantID,
+		TenantID:      &tenantID,
 		Email:         email,
-		Name:          "Test User",
-		Password:      string(hashedPassword),
+		Username:      email,
+		FirstName:     "Test",
+		LastName:      "User",
+		PasswordHash:  string(hashedPassword),
 		IsActive:      true,
 		EmailVerified: true,
 		CreatedAt:     time.Now(),
@@ -36,7 +38,7 @@ func CreateTestUser(db *gorm.DB, tenantID uuid.UUID, email string) (*models.User
 func CreateTestRole(db *gorm.DB, tenantID uuid.UUID, name string) (*models.Role, error) {
 	role := &models.Role{
 		ID:          uuid.New(),
-		TenantID:    tenantID,
+		TenantID:    &tenantID,
 		Name:        name,
 		Description: "Test role",
 		CreatedAt:   time.Now(),
@@ -54,7 +56,7 @@ func CreateTestRole(db *gorm.DB, tenantID uuid.UUID, name string) (*models.Role,
 func CreateTestPermission(db *gorm.DB, tenantID uuid.UUID, resource, action string) (*models.Permission, error) {
 	permission := &models.Permission{
 		ID:          uuid.New(),
-		TenantID:    tenantID,
+		Name:        resource + "_" + action,
 		Resource:    resource,
 		Action:      action,
 		Description: "Test permission",
@@ -81,13 +83,15 @@ func AssignRoleToUser(db *gorm.DB, userID, roleID uuid.UUID) error {
 // CreateTestSession creates a test session
 func CreateTestSession(db *gorm.DB, tenantID, userID uuid.UUID, token string) (*models.Session, error) {
 	session := &models.Session{
-		ID:        uuid.New(),
-		TenantID:  tenantID,
-		UserID:    userID,
-		Token:     token,
-		ExpiresAt: time.Now().Add(24 * time.Hour),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:           uuid.New(),
+		TenantID:     &tenantID,
+		UserID:       userID,
+		AccessToken:  token,
+		IsActive:     true,
+		ExpiresAt:    time.Now().Add(24 * time.Hour),
+		LastActiveAt: time.Now(),
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
 	if err := db.Create(session).Error; err != nil {
