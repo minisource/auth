@@ -21,7 +21,7 @@ require (
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/swaggo/swag v1.16.6
 	golang.org/x/crypto v0.47.0
-	gorm.io/driver/postgres v1.5.11
+	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.25.12
 )
 
