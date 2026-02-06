@@ -18,7 +18,7 @@ require (
 	github.com/lib/pq v1.11.1
 	github.com/minisource/go-common v0.0.4-0.20250402190339-caa3304676a9
 	github.com/minisource/go-sdk v0.0.0-00010101000000-000000000000
-	github.com/redis/go-redis/v9 v9.7.0
+	github.com/redis/go-redis/v9 v9.17.3
 	github.com/swaggo/swag v1.16.6
 	golang.org/x/crypto v0.47.0
 	gorm.io/driver/postgres v1.5.11
