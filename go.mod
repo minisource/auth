@@ -18,7 +18,7 @@ require (
 	github.com/lib/pq v1.11.1
 	github.com/minisource/go-common v0.0.4-0.20250402190339-caa3304676a9
 	github.com/minisource/go-sdk v0.0.0-00010101000000-000000000000
-	github.com/redis/go-redis/v9 v9.7.0
+	github.com/redis/go-redis/v9 v9.18.0
 	github.com/swaggo/swag v1.16.6
 	golang.org/x/crypto v0.47.0
 	gorm.io/driver/postgres v1.5.11
@@ -80,6 +80,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
