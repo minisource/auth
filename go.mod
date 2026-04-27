@@ -9,7 +9,7 @@ replace github.com/minisource/go-common => ../go-common
 replace github.com/minisource/go-sdk => ../go-sdk
 
 require (
-	github.com/gofiber/fiber/v2 v2.52.11
+	github.com/gofiber/fiber/v2 v2.52.13
 	github.com/gofiber/swagger v1.1.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
