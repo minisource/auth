@@ -59,12 +59,16 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 	}))
 
 	// CORS
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.Cors.AllowedOrigins,
-		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Tenant-ID",
-		AllowCredentials: true,
-	}))
+	corsConfig := cors.Config{
+		AllowOrigins: cfg.Cors.AllowedOrigins,
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders: "Origin,Content-Type,Accept,Authorization,X-Tenant-ID",
+	}
+	// Only enable credentials when origins are explicitly set (not wildcard)
+	if cfg.Cors.AllowedOrigins != "*" {
+		corsConfig.AllowCredentials = true
+	}
+	app.Use(cors.New(corsConfig))
 
 	// Tenant middleware - extract and validate tenant context
 	app.Use(commonMiddleware.TenantMiddleware(commonMiddleware.TenantConfig{
@@ -79,7 +83,13 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 				return true // Skip validation if DB not available
 			}
 			var tenant models.Tenant
-			result := services.DB.Where("id = ? AND is_active = ?", tenantID, true).First(&tenant)
+			// Dev mode: skip if no tenants in DB (allows bootstrapping)
+			var count int64
+			services.DB.Model(&models.Tenant{}).Count(&count)
+			if count == 0 {
+				return true
+			}
+			result := services.DB.Where("(id = ? OR slug = ?) AND status = 'active'", tenantID, tenantID).First(&tenant)
 			return result.Error == nil
 		},
 	}))
@@ -123,6 +133,9 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 	{
 		authProtected.Post("/logout", handlers.Auth.Logout)
 	}
+
+	// Token validation for microservices (user JWT or service JWT in Authorization header)
+	v1.Get("/tokens/validate", handlers.ServiceAuth.ValidateBearerToken)
 
 	// Service authentication (for other services)
 	serviceAuth := v1.Group("/service")

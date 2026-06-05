@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/minisource/auth/api/dto"
+	"github.com/minisource/auth/internal/models"
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/logging"
 	"github.com/minisource/go-common/response"
@@ -50,7 +51,7 @@ func (h *UserHandler) GetProfile(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
-	return c.JSON(toUserInfo(user))
+	return response.OK(c, toUserInfo(user))
 }
 
 // UpdateProfile godoc
@@ -270,8 +271,28 @@ func toUserInfo(user interface{}) *dto.UserInfo {
 		return nil
 	}
 
-	// Type assertion based on what type is passed
 	switch u := user.(type) {
+	case *models.User:
+		roles := make([]string, 0, len(u.Roles))
+		for _, r := range u.Roles {
+			roles = append(roles, r.Name)
+		}
+		phone := ""
+		if u.Phone != nil {
+			phone = *u.Phone
+		}
+		return &dto.UserInfo{
+			ID:            u.ID.String(),
+			Email:         u.Email,
+			Username:      u.Username,
+			FirstName:     u.FirstName,
+			LastName:      u.LastName,
+			Phone:         phone,
+			Avatar:        u.Avatar,
+			EmailVerified: u.EmailVerified,
+			PhoneVerified: u.PhoneVerified,
+			Roles:         roles,
+		}
 	case interface {
 		GetID() string
 		GetEmail() string

@@ -3,11 +3,7 @@
 
 services:
   auth:
-    build:
-      context: ..
-      dockerfile: auth/Dockerfile
-      args:
-        - GO_VERSION=1.23
+    image: minisource/auth:${TAG:-latest}
     container_name: ${COMPOSE_PROJECT_NAME:-auth}-service
     env_file:
       - .env

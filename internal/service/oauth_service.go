@@ -80,16 +80,25 @@ func NewOAuthService(
 
 // GetGoogleAuthURL generates the Google OAuth URL for login
 func (s *OAuthService) GetGoogleAuthURL(state string) (string, error) {
-	clientID := s.settingsService.GetGoogleClientID(context.Background())
+	googleCfg := s.settingsService.GetGoogleOAuthConfig(context.Background())
+	clientID := googleCfg.ClientID
 	if clientID == "" {
 		return "", ErrOAuthNotConfigured
 	}
 
-	baseURL := "https://accounts.google.com/o/oauth2/v2/auth"
+	baseURL := googleCfg.AuthURL
+	if baseURL == "" {
+		baseURL = "https://accounts.google.com/o/oauth2/v2/auth"
+	}
+
+	redirectURL := googleCfg.RedirectURL
+	if redirectURL == "" {
+		redirectURL = s.cfg.Google.RedirectURL
+	}
 
 	params := url.Values{}
 	params.Add("client_id", clientID)
-	params.Add("redirect_uri", s.cfg.Google.RedirectURL)
+	params.Add("redirect_uri", redirectURL)
 	params.Add("response_type", "code")
 	params.Add("scope", "openid email profile")
 	params.Add("state", state)
@@ -130,17 +139,26 @@ func (s *OAuthService) HandleGoogleCallback(ctx context.Context, code, ipAddress
 }
 
 func (s *OAuthService) exchangeGoogleCode(ctx context.Context, code string) (*GoogleTokenResponse, error) {
-	clientID := s.settingsService.GetGoogleClientID(ctx)
-	clientSecret := s.settingsService.GetGoogleClientSecret(ctx)
+	googleCfg := s.settingsService.GetGoogleOAuthConfig(ctx)
+	clientID := googleCfg.ClientID
+	clientSecret := googleCfg.ClientSecret
+	redirectURL := googleCfg.RedirectURL
+	if redirectURL == "" {
+		redirectURL = s.cfg.Google.RedirectURL
+	}
+	tokenURL := googleCfg.TokenURL
+	if tokenURL == "" {
+		tokenURL = "https://oauth2.googleapis.com/token"
+	}
 
 	data := url.Values{}
 	data.Set("code", code)
 	data.Set("client_id", clientID)
 	data.Set("client_secret", clientSecret)
-	data.Set("redirect_uri", s.cfg.Google.RedirectURL)
+	data.Set("redirect_uri", redirectURL)
 	data.Set("grant_type", "authorization_code")
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://oauth2.googleapis.com/token", strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +189,13 @@ func (s *OAuthService) exchangeGoogleCode(ctx context.Context, code string) (*Go
 }
 
 func (s *OAuthService) getGoogleUserInfo(ctx context.Context, accessToken string) (*GoogleUserInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	googleCfg := s.settingsService.GetGoogleOAuthConfig(ctx)
+	userInfoURL := googleCfg.UserInfoURL
+	if userInfoURL == "" {
+		userInfoURL = "https://www.googleapis.com/oauth2/v2/userinfo"
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", userInfoURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +424,7 @@ func (s *OAuthService) createOAuthSession(ctx context.Context, user *models.User
 			Username:      user.Username,
 			FirstName:     user.FirstName,
 			LastName:      user.LastName,
-			Phone:         user.Phone,
+			Phone:         derefPhone(user.Phone),
 			Avatar:        user.Avatar,
 			EmailVerified: user.EmailVerified,
 			PhoneVerified: user.PhoneVerified,

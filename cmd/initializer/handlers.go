@@ -20,7 +20,7 @@ func InitHandlers(
 		User:        handler.NewUserHandler(services.User, services.OAuth, logger),
 		AdminUser:   handler.NewAdminUserHandler(services.User, logger),
 		Role:        handler.NewRoleHandler(services.Role, logger),
-		ServiceAuth: handler.NewServiceAuthHandler(services.ServiceAuth, logger),
+		ServiceAuth: handler.NewServiceAuthHandler(services.ServiceAuth, services.Token, logger),
 		Health:      handler.NewHealthHandler(dbHealth, redisHealth),
 	}
 }

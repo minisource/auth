@@ -185,6 +185,15 @@ func (s *SettingsService) IsOTPLoginEnabled(ctx context.Context) bool {
 func (s *SettingsService) GetGoogleOAuthConfig(ctx context.Context) config.GoogleOAuthConfig {
 	cfg := s.envConfig.Google
 
+	if s.envConfig.Google.MockEnabled {
+		if cfg.ClientID == "" {
+			cfg.ClientID = "mock-google-client-id"
+		}
+		if cfg.ClientSecret == "" {
+			cfg.ClientSecret = "mock-google-client-secret"
+		}
+	}
+
 	// Override with DB values if set
 	if clientID := s.GetString(ctx, "google_client_id", ""); clientID != "" {
 		cfg.ClientID = clientID

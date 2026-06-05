@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -103,6 +104,9 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, userID uuid.UUID, t
 			})
 			// Check if it's a notifier unavailable error
 			if errors.Is(err, ErrNotifierUnavailable) {
+				return nil, NewNotifierUnavailableError()
+			}
+			if strings.Contains(err.Error(), "notifier") || strings.Contains(err.Error(), "SMS") {
 				return nil, NewNotifierUnavailableError()
 			}
 			return nil, err

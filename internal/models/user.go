@@ -12,7 +12,7 @@ type User struct {
 	ID             uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	TenantID       *uuid.UUID     `gorm:"type:uuid;index" json:"tenantId,omitempty"` // Current/default tenant
 	Email          string         `gorm:"uniqueIndex;size:255" json:"email"`
-	Phone          string         `gorm:"uniqueIndex;size:20" json:"phone,omitempty"`
+	Phone          *string        `gorm:"uniqueIndex;size:20" json:"phone,omitempty"`
 	Username       string         `gorm:"uniqueIndex;size:100" json:"username"`
 	PasswordHash   string         `gorm:"size:255" json:"-"`
 	FirstName      string         `gorm:"size:100" json:"firstName"`

@@ -87,6 +87,10 @@ type GoogleOAuthConfig struct {
 	ClientID     string
 	ClientSecret string
 	RedirectURL  string
+	MockEnabled  bool
+	AuthURL      string
+	TokenURL     string
+	UserInfoURL  string
 }
 
 type CorsConfig struct {
@@ -163,6 +167,10 @@ func GetConfig() *Config {
 				ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 				ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 				RedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:9001/api/v1/auth/google/callback"),
+				MockEnabled:  getEnvAsBool("GOOGLE_MOCK_ENABLED", false),
+				AuthURL:      getEnv("GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
+				TokenURL:     getEnv("GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
+				UserInfoURL:  getEnv("GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v2/userinfo"),
 			},
 			Cors: CorsConfig{
 				AllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "*"),

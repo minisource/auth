@@ -187,6 +187,11 @@ proto-clean:
 	find proto -name "*.pb.go" -type f -delete
 	@echo "✓ Cleaned"
 
+# Generate Swagger documentation (requires swag: go install github.com/swaggo/swag/cmd/swag@latest)
+swagger:
+	@echo "Generating Swagger docs..."
+	swag init -g cmd/main.go -o docs --parseDependency --parseInternal
+
 # ================================
 # Help
 # ================================
@@ -220,6 +225,7 @@ help:
 	@echo "  make dev            - Run with hot reload (requires air)"
 	@echo "  make tools          - Install development tools"
 	@echo "  make lint           - Run linter"
+	@echo "  make swagger        - Generate Swagger documentation"
 	@echo ""
 	@echo "Protobuf:"
 	@echo "  make proto-buf      - Generate protobuf files with buf"

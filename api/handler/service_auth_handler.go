@@ -13,15 +13,18 @@ import (
 // ServiceAuthHandler handles service-to-service authentication
 type ServiceAuthHandler struct {
 	serviceAuthService *service.ServiceAuthService
+	tokenService       *service.TokenService
 	logger             logging.Logger
 }
 
 func NewServiceAuthHandler(
 	serviceAuthService *service.ServiceAuthService,
+	tokenService *service.TokenService,
 	logger logging.Logger,
 ) *ServiceAuthHandler {
 	return &ServiceAuthHandler{
 		serviceAuthService: serviceAuthService,
+		tokenService:       tokenService,
 		logger:             logger,
 	}
 }
@@ -89,6 +92,53 @@ func (h *ServiceAuthHandler) ValidateToken(c *fiber.Ctx) error {
 		"serviceName": claims.Name,
 		"scopes":      claims.Scopes,
 		"expiresAt":   claims.ExpiresAt,
+		"tokenType":   "service",
+	})
+}
+
+// ValidateBearerToken validates a user or service JWT (public; token in Authorization header).
+func (h *ServiceAuthHandler) ValidateBearerToken(c *fiber.Ctx) error {
+	token := getTokenFromHeader(c)
+	if token == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"valid": false,
+			"error": "No token provided",
+		})
+	}
+
+	if claims, err := h.tokenService.ValidateToken(token); err == nil && claims.TokenType == "access" {
+		scopes := append(append([]string{}, claims.Roles...), claims.Permissions...)
+		var expiresAt int64
+		if claims.ExpiresAt != nil {
+			expiresAt = claims.ExpiresAt.Unix()
+		}
+		return c.JSON(fiber.Map{
+			"valid":       true,
+			"userId":      claims.UserID,
+			"email":       claims.Email,
+			"roles":       claims.Roles,
+			"permissions": claims.Permissions,
+			"scopes":      scopes,
+			"expiresAt":   expiresAt,
+			"tokenType":   "user",
+		})
+	}
+
+	claims, err := h.serviceAuthService.ValidateServiceToken(c.Context(), token)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"valid": false,
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"valid":       true,
+		"clientId":    claims.ClientID,
+		"serviceName": claims.Name,
+		"scopes":      claims.Scopes,
+		"expiresAt":   claims.ExpiresAt,
+		"tokenType":   "service",
 	})
 }
 

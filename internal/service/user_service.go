@@ -249,9 +249,13 @@ func (s *UserService) CreateUser(ctx context.Context, req *CreateUserRequest) (*
 		username = generateUsernameFromEmail(email)
 	}
 
+	var phonePtr *string
+	if phone != "" {
+		phonePtr = &phone
+	}
 	user := &models.User{
 		Email:        email,
-		Phone:        phone,
+		Phone:        phonePtr,
 		Username:     username,
 		PasswordHash: hash,
 		FirstName:    req.FirstName,
@@ -294,12 +298,12 @@ func (s *UserService) UpdateUser(ctx context.Context, userID uuid.UUID, req *Upd
 	}
 
 	phone := NormalizePhone(req.Phone)
-	if phone != "" && phone != user.Phone {
+	if phone != "" && (user.Phone == nil || phone != *user.Phone) {
 		exists, _ := s.userRepo.ExistsByPhone(ctx, phone)
 		if exists {
 			return nil, ErrPhoneExists
 		}
-		user.Phone = phone
+		user.Phone = &phone
 	}
 
 	user.FirstName = req.FirstName

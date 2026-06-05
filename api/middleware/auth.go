@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/minisource/auth/internal/models"
 	"github.com/minisource/auth/internal/service"
 )
 
@@ -71,8 +72,11 @@ func RequireRoles(roles ...string) fiber.Handler {
 			})
 		}
 
-		for _, required := range roles {
-			for _, userRole := range userRoles {
+		for _, userRole := range userRoles {
+			if userRole == models.RoleSuperAdmin {
+				return c.Next()
+			}
+			for _, required := range roles {
 				if userRole == required {
 					return c.Next()
 				}

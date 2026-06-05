@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -190,9 +191,13 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*mode
 	}
 
 	// Create user
+	var phonePtr *string
+	if phone != "" {
+		phonePtr = &phone
+	}
 	user := &models.User{
 		Email:        email,
-		Phone:        phone,
+		Phone:        phonePtr,
 		Username:     username,
 		PasswordHash: passwordHash,
 		FirstName:    req.FirstName,
@@ -289,11 +294,17 @@ func (s *AuthService) autoRegisterByPhone(ctx context.Context, phone, firstName,
 	tempPassword, _ := GenerateSecureToken(16)
 	passwordHash, _ := s.passwordService.HashPassword(tempPassword)
 
-	// Generate username from phone
-	username := "user_" + phone[len(phone)-4:]
+	// Generate username from phone; synthetic email avoids uniqueIndex collision on empty email
+	digits := strings.TrimPrefix(strings.TrimPrefix(phone, "+98"), "+")
+	if len(digits) < 4 {
+		digits = uuid.New().String()[:8]
+	}
+	username := "user_" + digits[len(digits)-4:]
+	placeholderEmail := fmt.Sprintf("phone_%s@phone.local", digits)
 
 	user := &models.User{
-		Phone:        phone,
+		Email:        placeholderEmail,
+		Phone:        &phone,
 		Username:     username,
 		PasswordHash: passwordHash,
 		FirstName:    firstName,
@@ -509,7 +520,7 @@ func (s *AuthService) createTokensForSession(ctx context.Context, user *models.U
 			Username:      user.Username,
 			FirstName:     user.FirstName,
 			LastName:      user.LastName,
-			Phone:         user.Phone,
+			Phone:         derefPhone(user.Phone),
 			Avatar:        user.Avatar,
 			EmailVerified: user.EmailVerified,
 			PhoneVerified: user.PhoneVerified,
@@ -569,6 +580,14 @@ func extractPermissions(roles []models.Role) []string {
 	return perms
 }
 
+// derefPhone safely dereferences a *string to string, returning "" if nil
+func derefPhone(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 func generateUsernameFromEmail(email string) string {
 	parts := strings.Split(email, "@")
 	if len(parts) > 0 {
@@ -579,6 +598,12 @@ func generateUsernameFromEmail(email string) string {
 
 // ResetPassword verifies OTP and updates user password
 func (s *AuthService) ResetPassword(ctx context.Context, target, code, newPassword string) error {
+	if ValidateEmail(target) {
+		target = NormalizeEmail(target)
+	} else {
+		target = NormalizePhone(target)
+	}
+
 	// Verify OTP for password reset
 	if err := s.otpService.VerifyOTP(ctx, target, code, "password_reset"); err != nil {
 		return err
@@ -589,7 +614,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, target, code, newPasswo
 	var err error
 
 	if ValidateEmail(target) {
-		user, err = s.userRepo.GetByEmail(ctx, NormalizeEmail(target))
+		user, err = s.userRepo.GetByEmail(ctx, target)
 	} else {
 		user, err = s.userRepo.GetByPhone(ctx, target)
 	}
@@ -623,6 +648,12 @@ func (s *AuthService) ResetPassword(ctx context.Context, target, code, newPasswo
 
 // VerifyEmailOrPhone verifies OTP and marks email/phone as verified
 func (s *AuthService) VerifyEmailOrPhone(ctx context.Context, target, code, otpType string) error {
+	if ValidateEmail(target) {
+		target = NormalizeEmail(target)
+	} else {
+		target = NormalizePhone(target)
+	}
+
 	// Verify OTP
 	if err := s.otpService.VerifyOTP(ctx, target, code, otpType); err != nil {
 		return err
@@ -653,7 +684,7 @@ func (s *AuthService) VerifyEmailOrPhone(ctx context.Context, target, code, otpT
 		user.PhoneVerified = true
 		s.logger.Info(logging.General, logging.Api, "Phone verified", map[logging.ExtraKey]interface{}{
 			"userId": user.ID,
-			"phone":  user.Phone,
+			"phone":  derefPhone(user.Phone),
 		})
 	}
 
