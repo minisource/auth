@@ -16,7 +16,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
-	github.com/lib/pq v1.11.1
+	github.com/lib/pq v1.12.3
 	github.com/minisource/go-common v0.0.4-0.20250402190339-caa3304676a9
 	github.com/minisource/go-sdk v0.0.0-00010101000000-000000000000
 	github.com/prometheus/client_golang v1.20.5
