@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -17,19 +18,21 @@ var (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Postgres PostgresConfig
-	Redis    RedisConfig
-	JWT      JWTConfig
-	OTP      OTPConfig
-	Password PasswordConfig
-	Google   GoogleOAuthConfig
-	Cors     CorsConfig
-	Logger   logging.LoggerConfig
-	Notifier NotifierConfig
-	GRPC     GRPCConfig
-	Database DatabaseConfig
-	Tracing  TracingConfig
+	Server        ServerConfig
+	Postgres      PostgresConfig
+	Redis         RedisConfig
+	JWT           JWTConfig
+	OTP           OTPConfig
+	Password      PasswordConfig
+	Google        GoogleOAuthConfig
+	RateLimit     RateLimitConfig
+	Introspection IntrospectionConfig
+	Cors          CorsConfig
+	Logger        logging.LoggerConfig
+	Notifier      NotifierConfig
+	GRPC          GRPCConfig
+	Database      DatabaseConfig
+	Tracing       TracingConfig
 }
 
 type ServerConfig struct {
@@ -67,6 +70,14 @@ type JWTConfig struct {
 	AccessExpiry  time.Duration
 	RefreshExpiry time.Duration
 	Issuer        string
+	Algorithm     string // "HS256" or "RS256"
+	Audience      string // Default audience for tokens
+	KeyID         string // Key ID for JWKS kid header
+	PrivateKeyPath  string
+	PublicKeyPath   string
+	PrivateKeyPEM   string
+	PublicKeyPEM    string
+	AllowHS256InProduction bool
 }
 
 type OTPConfig struct {
@@ -91,6 +102,17 @@ type GoogleOAuthConfig struct {
 	AuthURL      string
 	TokenURL     string
 	UserInfoURL  string
+}
+
+type RateLimitConfig struct {
+	LoginPerMinute          int
+	OTPPerMinute            int
+	PasswordResetPerHour    int
+	RegisterPerMinute       int
+}
+
+type IntrospectionConfig struct {
+	RequireServiceAuth bool
 }
 
 type CorsConfig struct {
@@ -150,6 +172,14 @@ func GetConfig() *Config {
 				AccessExpiry:  getEnvAsDuration("JWT_ACCESS_EXPIRY", 15*time.Minute),
 				RefreshExpiry: getEnvAsDuration("JWT_REFRESH_EXPIRY", 168*time.Hour),
 				Issuer:        getEnv("JWT_ISSUER", "minisource-auth"),
+				Algorithm:     getEnv("JWT_ALGORITHM", "HS256"),
+				Audience:      getEnv("JWT_AUDIENCE", "minisource"),
+				KeyID:         getEnv("JWT_KEY_ID", "auth-key-1"),
+				PrivateKeyPath:  getEnv("JWT_PRIVATE_KEY_PATH", ""),
+				PublicKeyPath:   getEnv("JWT_PUBLIC_KEY_PATH", ""),
+				PrivateKeyPEM:   getEnv("JWT_PRIVATE_KEY_PEM", ""),
+				PublicKeyPEM:    getEnv("JWT_PUBLIC_KEY_PEM", ""),
+				AllowHS256InProduction: getEnvAsBool("AUTH_ALLOW_HS256_IN_PRODUCTION", false),
 			},
 			OTP: OTPConfig{
 				Length:      getEnvAsInt("OTP_LENGTH", 6),
@@ -171,6 +201,15 @@ func GetConfig() *Config {
 				AuthURL:      getEnv("GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
 				TokenURL:     getEnv("GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
 				UserInfoURL:  getEnv("GOOGLE_USERINFO_URL", "https://www.googleapis.com/oauth2/v2/userinfo"),
+			},
+			RateLimit: RateLimitConfig{
+				LoginPerMinute:       getEnvAsInt("AUTH_LOGIN_RATE_LIMIT_PER_MINUTE", 5),
+				OTPPerMinute:         getEnvAsInt("AUTH_OTP_RATE_LIMIT_PER_MINUTE", 3),
+				PasswordResetPerHour: getEnvAsInt("AUTH_PASSWORD_RESET_RATE_LIMIT_PER_HOUR", 5),
+				RegisterPerMinute:    getEnvAsInt("AUTH_REGISTER_RATE_LIMIT_PER_MINUTE", 3),
+			},
+			Introspection: IntrospectionConfig{
+				RequireServiceAuth: getEnvAsBool("AUTH_INTROSPECTION_REQUIRE_SERVICE_AUTH", true),
 			},
 			Cors: CorsConfig{
 				AllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "*"),
@@ -210,6 +249,71 @@ func GetConfig() *Config {
 
 func (c *Config) IsDevelopment() bool {
 	return c.Server.Mode == "development"
+}
+
+func (c *Config) IsProduction() bool {
+	return c.Server.Mode == "production"
+}
+
+// Validate checks configuration for security and consistency.
+// Returns an error if the configuration is invalid for the current environment.
+func (c *Config) Validate() error {
+	if c.IsProduction() {
+		return c.validateProduction()
+	}
+	return c.validateDevelopment()
+}
+
+func (c *Config) validateProduction() error {
+	// JWT secret must not be the default
+	if c.JWT.Secret == "change-me-in-production" {
+		return fmt.Errorf("JWT_SECRET must be set to a secure value in production (current: default placeholder)")
+	}
+
+	// Algorithm must be set
+	if c.JWT.Algorithm == "" {
+		return fmt.Errorf("JWT_ALGORITHM must be set in production")
+	}
+
+	// Only RS256 allowed in production unless explicitly overridden
+	if c.JWT.Algorithm != "RS256" && c.JWT.Algorithm != "EdDSA" {
+		if !c.JWT.AllowHS256InProduction {
+			return fmt.Errorf("JWT_ALGORITHM=%s is not allowed in production; use RS256 or set AUTH_ALLOW_HS256_IN_PRODUCTION=true", c.JWT.Algorithm)
+		}
+		log.Println("WARNING: HS256 is enabled in production via AUTH_ALLOW_HS256_IN_PRODUCTION=true")
+	}
+
+	// RS256 requires key pair
+	if c.JWT.Algorithm == "RS256" {
+		if c.JWT.PrivateKeyPEM == "" && c.JWT.PrivateKeyPath == "" {
+			return fmt.Errorf("RS256 requires JWT_PRIVATE_KEY_PATH or JWT_PRIVATE_KEY_PEM in production")
+		}
+		if c.JWT.PublicKeyPEM == "" && c.JWT.PublicKeyPath == "" {
+			return fmt.Errorf("RS256 requires JWT_PUBLIC_KEY_PATH or JWT_PUBLIC_KEY_PEM in production")
+		}
+	}
+
+	// Issuer must be set
+	if c.JWT.Issuer == "" {
+		return fmt.Errorf("JWT_ISSUER must be set")
+	}
+
+	// Audience must be set
+	if c.JWT.Audience == "" {
+		return fmt.Errorf("JWT_AUDIENCE must be set")
+	}
+
+	return nil
+}
+
+func (c *Config) validateDevelopment() error {
+	// In development, RS256 keys are optional (HS256 fallback works)
+	if c.JWT.Algorithm == "RS256" {
+		if c.JWT.PrivateKeyPEM == "" && c.JWT.PrivateKeyPath == "" {
+			return fmt.Errorf("RS256 requires JWT_PRIVATE_KEY_PATH or JWT_PRIVATE_KEY_PEM")
+		}
+	}
+	return nil
 }
 
 func getEnv(key, defaultValue string) string {

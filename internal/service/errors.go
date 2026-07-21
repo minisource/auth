@@ -73,6 +73,7 @@ var (
 	ErrRegistrationDisabled   = errors.New("registration is disabled")
 	ErrCannotDeleteSystemRole = errors.New("cannot delete system role")
 	ErrServiceClientExists    = errors.New("service client already exists")
+	ErrServiceClientNotFound  = errors.New("service client not found")
 )
 
 // Error constructors for service errors with i18n support

@@ -11,6 +11,7 @@ import (
 	"github.com/minisource/auth/internal/models"
 	"github.com/minisource/auth/internal/repository"
 	"github.com/minisource/go-common/logging"
+	"github.com/minisource/go-common/sensitive"
 )
 
 // AuthService handles user authentication
@@ -345,12 +346,12 @@ func (s *AuthService) VerifyOTPAndLogin(ctx context.Context, target, code, otpTy
 		target = NormalizePhone(target)
 	}
 
-	s.logger.Debug(logging.Validation, logging.Api, "Verifying OTP with normalized target", map[logging.ExtraKey]interface{}{
+	s.logger.Debug(logging.Validation, logging.Api, "Verifying OTP with normalized target", sensitive.LogMap(map[logging.ExtraKey]interface{}{
 		"originalTarget":   originalTarget,
 		"normalizedTarget": target,
 		"code":             code,
 		"type":             otpType,
-	})
+	}, "code"))
 
 	// Verify OTP
 	if err := s.otpService.VerifyOTP(ctx, target, code, otpType); err != nil {
@@ -646,6 +647,11 @@ func (s *AuthService) ResetPassword(ctx context.Context, target, code, newPasswo
 	return nil
 }
 
+// GetUserByID returns a user by ID
+func (s *AuthService) GetUserByID(ctx context.Context, userID uuid.UUID) (*models.User, error) {
+	return s.userRepo.GetWithRoles(ctx, userID)
+}
+
 // VerifyEmailOrPhone verifies OTP and marks email/phone as verified
 func (s *AuthService) VerifyEmailOrPhone(ctx context.Context, target, code, otpType string) error {
 	if ValidateEmail(target) {
@@ -689,4 +695,93 @@ func (s *AuthService) VerifyEmailOrPhone(ctx context.Context, target, code, otpT
 	}
 
 	return s.userRepo.Update(ctx, user)
+}
+
+// ─── Account Phone (Authenticated) ─────────────────────────
+
+// StartPhoneVerification initiates phone verification for an authenticated user.
+// It checks that the phone isn't already taken by another user before sending OTP.
+func (s *AuthService) StartPhoneVerification(ctx context.Context, userID uuid.UUID, phone string) (*SendOTPResponse, error) {
+	phone = NormalizePhone(phone)
+	if phone == "" {
+		return nil, ErrUserNotFound
+	}
+
+	// Check duplicate: reject if phone belongs to ANOTHER user
+	existing, err := s.userRepo.GetByPhone(ctx, phone)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		if existing.ID != userID {
+			s.logger.Warn(logging.Validation, logging.Api, "Phone already taken by another user", map[logging.ExtraKey]interface{}{
+				"phone":          phone,
+				"requestingUser": userID,
+				"existingUser":   existing.ID,
+			})
+			return nil, ErrPhoneExists
+		}
+		// Phone already belongs to this user and is verified -> return already-verified state
+		if existing.PhoneVerified {
+			s.logger.Info(logging.General, logging.Api, "Phone already verified for this user", map[logging.ExtraKey]interface{}{
+				"userId": userID,
+				"phone":  phone,
+			})
+			return &SendOTPResponse{
+				ExpiresAt: time.Now(),
+				ExpiresIn: 0,
+			}, nil
+		}
+	}
+
+	// Generate and send OTP for phone_verification
+	return s.otpService.GenerateAndSendOTP(ctx, userID, phone, models.OTPTypePhoneVerification)
+}
+
+// VerifyPhone completes phone verification for an authenticated user.
+// It validates the OTP, re-checks duplicate (race-safe), and sets the phone.
+func (s *AuthService) VerifyPhone(ctx context.Context, userID uuid.UUID, phone, code string) (*models.User, error) {
+	phone = NormalizePhone(phone)
+	if phone == "" {
+		return nil, ErrUserNotFound
+	}
+
+	// Verify OTP
+	if err := s.otpService.VerifyOTP(ctx, phone, code, models.OTPTypePhoneVerification); err != nil {
+		return nil, err
+	}
+
+	// Re-check duplicate right before commit (race-safe)
+	existing, err := s.userRepo.GetByPhone(ctx, phone)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.ID != userID {
+		s.logger.Warn(logging.Validation, logging.Api, "Phone taken by another user during verification", map[logging.ExtraKey]interface{}{
+			"phone":          phone,
+			"requestingUser": userID,
+			"existingUser":   existing.ID,
+		})
+		return nil, ErrPhoneExists
+	}
+
+	// Get current user
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || user == nil {
+		return nil, ErrUserNotFound
+	}
+
+	// Set phone and mark verified
+	user.Phone = &phone
+	user.PhoneVerified = true
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+
+	s.logger.Info(logging.General, logging.Api, "Phone added and verified", map[logging.ExtraKey]interface{}{
+		"userId": userID,
+		"phone":  phone,
+	})
+
+	return s.userRepo.GetWithRoles(ctx, userID)
 }

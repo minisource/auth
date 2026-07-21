@@ -1,6 +1,9 @@
 package router
 
 import (
+	"sync"
+	"time"
+
 	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -20,12 +23,20 @@ import (
 
 // Handlers holds all API handlers
 type Handlers struct {
-	Auth        *handler.AuthHandler
-	User        *handler.UserHandler
-	AdminUser   *handler.AdminUserHandler
-	Role        *handler.RoleHandler
-	ServiceAuth *handler.ServiceAuthHandler
-	Health      *handler.HealthHandler
+	Auth               *handler.AuthHandler
+	User               *handler.UserHandler
+	AdminUser          *handler.AdminUserHandler
+	Role               *handler.RoleHandler
+	ServiceAuth        *handler.ServiceAuthHandler
+	Health             *handler.HealthHandler
+	AdminServiceClient *handler.AdminServiceClientHandler
+	AdminTenant        *handler.AdminTenantHandler
+	AdminOAuthProvider *handler.AdminOAuthProviderHandler
+	AdminSettings      *handler.AdminSettingsHandler
+	AdminDashboard     *handler.AdminDashboardHandler
+	AdminSession       *handler.AdminSessionHandler
+	AdminAudit         *handler.AdminAuditHandler
+	AdminTools         *handler.AdminToolsHandler
 }
 
 // Services holds services needed for middleware
@@ -58,17 +69,17 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 		Format: "[${time}] ${status} - ${method} ${path} ${latency}\n",
 	}))
 
-	// CORS
-	corsConfig := cors.Config{
-		AllowOrigins: cfg.Cors.AllowedOrigins,
-		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders: "Origin,Content-Type,Accept,Authorization,X-Tenant-ID",
+	// CORS — Fiber built-in handles origin matching
+	corsOrigins := cfg.Cors.AllowedOrigins
+	if corsOrigins == "" {
+		corsOrigins = "*"
 	}
-	// Only enable credentials when origins are explicitly set (not wildcard)
-	if cfg.Cors.AllowedOrigins != "*" {
-		corsConfig.AllowCredentials = true
-	}
-	app.Use(cors.New(corsConfig))
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     corsOrigins,
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Tenant-ID,X-Language,Accept-Language",
+		AllowCredentials: corsOrigins != "*",
+	}))
 
 	// Tenant middleware - extract and validate tenant context
 	app.Use(commonMiddleware.TenantMiddleware(commonMiddleware.TenantConfig{
@@ -99,6 +110,9 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 		app.Use(commonMiddleware.AuditLogger(commonMiddleware.DefaultAuditConfig(services.Audit)))
 	}
 
+	// Rate limiter for auth endpoints
+	rateLimiter := newRateLimiter()
+
 	// Health endpoints
 	app.Get("/health", handlers.Health.Health)
 	app.Get("/ready", handlers.Health.Ready)
@@ -109,29 +123,52 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 	// Swagger documentation
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
-	// API v1
-	v1 := app.Group("/api/v1")
+	// JWKS endpoints (public, no auth)
+	app.Get("/.well-known/jwks.json", handlers.Auth.JWKS)
 
-	// Public auth routes
+	// Register /api/v1 routes (backward compatible)
+	registerAPIRoutes("/api/v1", app, handlers, services, rateLimiter, cfg)
+
+	// Register /v1 routes (canonical)
+	registerAPIRoutes("/v1", app, handlers, services, rateLimiter, cfg)
+
+	return app
+}
+
+// registerAPIRoutes registers all API routes under the given prefix
+func registerAPIRoutes(prefix string, app *fiber.App, handlers *Handlers, services *Services, rl *rateLimiter, cfg *config.Config) {
+	v1 := app.Group(prefix)
+
+	// JWKS under prefix as well
+	v1.Get("/.well-known/jwks.json", handlers.Auth.JWKS)
+
+	// Public auth routes (with rate limiting)
 	auth := v1.Group("/auth")
 	{
-		auth.Post("/login", handlers.Auth.Login)
-		auth.Post("/register", handlers.Auth.Register)
-		auth.Post("/otp/send", handlers.Auth.SendOTP)
-		auth.Post("/otp/verify", handlers.Auth.VerifyOTP)
+		auth.Post("/login", rl.limit(cfg.RateLimit.LoginPerMinute), handlers.Auth.Login)
+		auth.Post("/register", rl.limit(cfg.RateLimit.RegisterPerMinute), handlers.Auth.Register)
+		auth.Post("/otp/send", rl.limit(cfg.RateLimit.OTPPerMinute), handlers.Auth.SendOTP)
+		auth.Post("/otp/verify", rl.limit(cfg.RateLimit.OTPPerMinute), handlers.Auth.VerifyOTP)
 		auth.Post("/refresh", handlers.Auth.RefreshToken)
-		auth.Post("/forgot-password", handlers.Auth.ForgotPassword)
-		auth.Post("/reset-password", handlers.Auth.ResetPassword)
+		auth.Post("/forgot-password", rl.limit(cfg.RateLimit.PasswordResetPerHour), handlers.Auth.ForgotPassword)
+		auth.Post("/reset-password", rl.limit(cfg.RateLimit.PasswordResetPerHour), handlers.Auth.ResetPassword)
 		auth.Post("/verify-email", handlers.Auth.VerifyEmail)
-		auth.Post("/resend-verification", handlers.Auth.ResendVerification)
+		auth.Post("/resend-verification", rl.limit(cfg.RateLimit.OTPPerMinute), handlers.Auth.ResendVerification)
 		auth.Get("/google", handlers.Auth.GetGoogleAuthURL)
 		auth.Get("/google/callback", handlers.Auth.GoogleCallback)
-	}
+		auth.Post("/google/mobile", handlers.Auth.GoogleMobileLogin)
 
-	// Protected auth routes
-	authProtected := v1.Group("/auth", middleware.AuthMiddleware(services.Token))
-	{
-		authProtected.Post("/logout", handlers.Auth.Logout)
+		// Protected auth routes
+		authProtected := v1.Group("/auth", middleware.AuthMiddleware(services.Token))
+		{
+			authProtected.Post("/logout", handlers.Auth.Logout)
+		}
+
+		// Userinfo (protected)
+		auth.Get("/userinfo", middleware.AuthMiddleware(services.Token), handlers.Auth.Userinfo)
+
+		// Introspect (public in dev, optionally service-auth in production)
+		auth.Post("/introspect", handlers.Auth.Introspect)
 	}
 
 	// Token validation for microservices (user JWT or service JWT in Authorization header)
@@ -158,10 +195,17 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 		users.Delete("/me/linked-accounts/google", handlers.User.UnlinkGoogleAccount)
 	}
 
-	// Admin routes
+	// Account routes — authenticated phone/identity management
+	account := v1.Group("/account", middleware.AuthMiddleware(services.Token))
+	{
+		account.Post("/phone/start", handlers.Auth.PhoneStart)
+		account.Post("/phone/verify", handlers.Auth.PhoneVerify)
+	}
+
+	// Admin routes — system_admin and super_admin also have access
 	admin := v1.Group("/admin",
 		middleware.AuthMiddleware(services.Token),
-		middleware.RequireRoles(models.RoleAdmin),
+		middleware.RequireRoles(models.RoleAdmin, models.RoleSuperAdmin),
 	)
 
 	// Admin user management
@@ -199,9 +243,170 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 	}
 
 	// Admin service client management
-	admin.Post("/service-clients", handlers.ServiceAuth.CreateServiceClient)
+	adminServiceClients := admin.Group("/service-clients")
+	{
+		adminServiceClients.Post("/", handlers.ServiceAuth.CreateServiceClient)
+		adminServiceClients.Get("/", handlers.AdminServiceClient.ListServiceClients)
+		adminServiceClients.Get("/:id", handlers.AdminServiceClient.GetServiceClient)
+		adminServiceClients.Put("/:id", handlers.AdminServiceClient.UpdateServiceClient)
+		adminServiceClients.Delete("/:id", handlers.AdminServiceClient.DeleteServiceClient)
+		adminServiceClients.Patch("/:id/status/:status", handlers.AdminServiceClient.ToggleServiceClientStatus)
+		adminServiceClients.Post("/:id/rotate-secret", handlers.AdminServiceClient.RotateServiceClientSecret)
+	}
 
-	return app
+	// Admin tenant management
+	adminTenants := admin.Group("/tenants")
+	{
+		adminTenants.Get("/", handlers.AdminTenant.ListTenants)
+		adminTenants.Get("/:id", handlers.AdminTenant.GetTenant)
+		adminTenants.Post("/", handlers.AdminTenant.CreateTenant)
+		adminTenants.Put("/:id", handlers.AdminTenant.UpdateTenant)
+		adminTenants.Delete("/:id", handlers.AdminTenant.DeleteTenant)
+		adminTenants.Patch("/:id/status/:status", handlers.AdminTenant.ToggleTenantStatus)
+
+		// Tenant members
+		adminTenants.Get("/:id/members", handlers.AdminTenant.ListTenantMembers)
+		adminTenants.Post("/:id/members", handlers.AdminTenant.AddTenantMember)
+		adminTenants.Patch("/:id/members/:userId", handlers.AdminTenant.UpdateTenantMember)
+		adminTenants.Delete("/:id/members/:userId", handlers.AdminTenant.RemoveTenantMember)
+
+		// Tenant invitations
+		adminTenants.Get("/:id/invitations", handlers.AdminTenant.ListTenantInvitations)
+		adminTenants.Post("/:id/invitations", handlers.AdminTenant.InviteTenantMember)
+		adminTenants.Delete("/:id/invitations/:invitationId", handlers.AdminTenant.RevokeTenantInvitation)
+	}
+
+	// Admin OAuth provider management
+	adminOAuthProviders := admin.Group("/oauth-providers")
+	{
+		adminOAuthProviders.Get("/", handlers.AdminOAuthProvider.ListOAuthProviders)
+		adminOAuthProviders.Get("/:id", handlers.AdminOAuthProvider.GetOAuthProvider)
+		adminOAuthProviders.Post("/", handlers.AdminOAuthProvider.CreateOAuthProvider)
+		adminOAuthProviders.Put("/:id", handlers.AdminOAuthProvider.UpdateOAuthProvider)
+		adminOAuthProviders.Delete("/:id", handlers.AdminOAuthProvider.DeleteOAuthProvider)
+		adminOAuthProviders.Patch("/:id/toggle", handlers.AdminOAuthProvider.ToggleOAuthProvider)
+	}
+
+	// Admin settings
+	adminSettings := admin.Group("/settings")
+	{
+		adminSettings.Get("/", handlers.AdminSettings.GetSettings)
+		adminSettings.Get("/:category", handlers.AdminSettings.GetSettingsByCategory)
+		adminSettings.Patch("/", handlers.AdminSettings.UpdateSettings)
+		adminSettings.Patch("/:category", handlers.AdminSettings.UpdateSettingsByCategory)
+	}
+
+	// Admin dashboard
+	adminDashboard := admin.Group("/dashboard")
+	{
+		adminDashboard.Get("/overview", handlers.AdminDashboard.GetDashboardOverview)
+		adminDashboard.Get("/recent-activity", handlers.AdminDashboard.GetRecentActivity)
+	}
+
+	// Admin sessions
+	adminSessions := admin.Group("/sessions")
+	{
+		adminSessions.Get("/", handlers.AdminSession.ListAllSessions)
+		adminSessions.Delete("/:id", handlers.AdminSession.RevokeSession)
+	}
+	// Admin user sessions (revoke all)
+	adminUsersSessions := admin.Group("/users")
+	{
+		adminUsersSessions.Delete("/:userId/sessions", handlers.AdminSession.RevokeUserAllSessions)
+	}
+
+	// Admin audit logs
+	adminAudit := admin.Group("")
+	{
+		adminAudit.Get("/login-logs", handlers.AdminAudit.ListLoginLogs)
+		adminAudit.Get("/audit-logs", handlers.AdminAudit.ListAuditLogs)
+	}
+
+	// Admin tools
+	adminTools := admin.Group("/tools")
+	{
+		adminTools.Post("/introspect-token", handlers.AdminTools.IntrospectToken)
+		adminTools.Post("/check-permission", handlers.AdminTools.CheckPermission)
+		adminTools.Get("/jwks-status", handlers.AdminTools.JWKSStatus)
+		adminTools.Get("/health", handlers.AdminTools.ToolsHealth)
+	}
+}
+
+// rateLimiter provides per-route IP-based rate limiting
+type rateLimiter struct {
+	mu      sync.Mutex
+	buckets map[string]*bucket
+}
+
+type bucket struct {
+	count    int
+	resetAt  time.Time
+	limit    int
+	duration time.Duration
+}
+
+func newRateLimiter() *rateLimiter {
+	rl := &rateLimiter{
+		buckets: make(map[string]*bucket),
+	}
+	go rl.cleanup()
+	return rl
+}
+
+func (rl *rateLimiter) limit(maxPerDuration int) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Rate limiting controlled by env vars — set *_RATE_LIMIT_*=0 to disable
+		if maxPerDuration <= 0 {
+			return c.Next()
+		}
+
+		ip := c.IP()
+		key := ip + ":" + c.Path()
+
+		rl.mu.Lock()
+		b, exists := rl.buckets[key]
+		now := time.Now()
+
+		if !exists || now.After(b.resetAt) {
+			rl.buckets[key] = &bucket{
+				count:    1,
+				resetAt:  now.Add(time.Minute),
+				limit:    maxPerDuration,
+				duration: time.Minute,
+			}
+			rl.mu.Unlock()
+			return c.Next()
+		}
+
+		b.count++
+		if b.count > b.limit {
+			rl.mu.Unlock()
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"success": false,
+				"error": fiber.Map{
+					"code":    "RATE_LIMITED",
+					"message": "Too many attempts. Please try again later.",
+				},
+			})
+		}
+		rl.mu.Unlock()
+		return c.Next()
+	}
+}
+
+func (rl *rateLimiter) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		rl.mu.Lock()
+		now := time.Now()
+		for key, b := range rl.buckets {
+			if now.After(b.resetAt) {
+				delete(rl.buckets, key)
+			}
+		}
+		rl.mu.Unlock()
+	}
 }
 
 func customErrorHandler(c *fiber.Ctx, err error) error {

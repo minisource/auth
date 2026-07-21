@@ -2,6 +2,7 @@ package initializer
 
 import (
 	"context"
+	"log"
 
 	"github.com/minisource/auth/config"
 	"github.com/minisource/auth/pkg/tracing"
@@ -13,7 +14,24 @@ import (
 
 // InitConfig loads configuration from environment
 func InitConfig() *config.Config {
-	return config.GetConfig()
+	cfg := config.GetConfig()
+
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("Config validation failed: %v", err)
+	}
+
+	logConfigSummary(cfg)
+	return cfg
+}
+
+func logConfigSummary(cfg *config.Config) {
+	log.Printf("Auth config validation passed")
+	log.Printf("  JWT algorithm: %s", cfg.JWT.Algorithm)
+	log.Printf("  JWT issuer: %s", cfg.JWT.Issuer)
+	log.Printf("  JWT audience: %s", cfg.JWT.Audience)
+	log.Printf("  JWT kid: %s", cfg.JWT.KeyID)
+	log.Printf("  CORS origins: [%s]", cfg.Cors.AllowedOrigins)
+	log.Printf("  Server mode: %s", cfg.Server.Mode)
 }
 
 // InitLogger creates and configures the logger

@@ -83,6 +83,7 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 		FirstName: req.FirstName,
 		LastName:  req.LastName,
 		Avatar:    req.Avatar,
+		Birthday:  req.Birthday,
 	})
 	if err != nil {
 		return handleAuthError(c, err, h.logger)
@@ -172,7 +173,7 @@ func (h *UserHandler) SetPassword(c *fiber.Ctx) error {
 // @Tags User
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {array} github_com_minisource_auth_internal_models.Session
+// @Success 200 {array} object
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /users/me/sessions [get]
 func (h *UserHandler) GetSessions(c *fiber.Ctx) error {
@@ -289,6 +290,7 @@ func toUserInfo(user interface{}) *dto.UserInfo {
 			LastName:      u.LastName,
 			Phone:         phone,
 			Avatar:        u.Avatar,
+			Birthday:      u.Birthday,
 			EmailVerified: u.EmailVerified,
 			PhoneVerified: u.PhoneVerified,
 			Roles:         roles,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/minisource/auth/config"
 	"github.com/minisource/go-common/logging"
+	"github.com/minisource/go-common/sensitive"
 	"github.com/minisource/go-sdk/auth"
 	notifier "github.com/minisource/go-sdk/notifier"
 )
@@ -109,16 +110,31 @@ func (c *GRPCNotifierClient) SendSMSWithData(ctx context.Context, req *SMSReques
 		return ErrNotifierUnavailable
 	}
 
-	_, err := c.client.SendSMSWithData(ctx, &notifier.SMSRequest{
+	c.logger.Debug(logging.General, logging.ExternalService, "Sending SMS via notifier gRPC", sensitive.LogMap(map[logging.ExtraKey]interface{}{
+		"phone":    req.Phone,
+		"template": req.Template,
+		"data":     req.Data,
+		"gotClient": true,
+	}, "data"))
+
+	notifierReq := &notifier.SMSRequest{
 		Phone:    req.Phone,
 		Template: req.Template,
 		Data:     req.Data,
-	})
+	}
+
+	c.logger.Debug(logging.General, logging.ExternalService, "Calling notifier client.SendSMSWithData", sensitive.LogMap(map[logging.ExtraKey]interface{}{
+		"request": fmt.Sprintf("%+v", notifierReq),
+	}, "request"))
+
+	_, err := c.client.SendSMSWithData(ctx, notifierReq)
 	if err != nil {
 		c.logger.Error(logging.General, logging.Api, "Failed to send SMS via notifier gRPC", map[logging.ExtraKey]interface{}{
-			"phone":    req.Phone,
-			"template": req.Template,
-			"error":    err.Error(),
+			"phone":      req.Phone,
+			"template":   req.Template,
+			"error":      err.Error(),
+			"errorType":  fmt.Sprintf("%T", err),
+			"hasAuthClient": c.authClient != nil,
 		})
 		return fmt.Errorf("notifier gRPC call failed: %w", err)
 	}

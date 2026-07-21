@@ -33,7 +33,7 @@ func NewRoleHandler(
 // @Tags Admin/Roles
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {array} github_com_minisource_auth_internal_models.Role
+// @Success 200 {array} object
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /admin/roles [get]
 func (h *RoleHandler) ListRoles(c *fiber.Ctx) error {
@@ -51,7 +51,7 @@ func (h *RoleHandler) ListRoles(c *fiber.Ctx) error {
 // @Produce json
 // @Param id path string true "Role ID"
 // @Security BearerAuth
-// @Success 200 {object} github_com_minisource_auth_internal_models.Role
+// @Success 200 {object} object
 // @Failure 404 {object} dto.ErrorResponse
 // @Router /admin/roles/{id} [get]
 func (h *RoleHandler) GetRole(c *fiber.Ctx) error {
@@ -76,7 +76,7 @@ func (h *RoleHandler) GetRole(c *fiber.Ctx) error {
 // @Produce json
 // @Param request body dto.CreateRoleRequest true "Role data"
 // @Security BearerAuth
-// @Success 201 {object} github_com_minisource_auth_internal_models.Role
+// @Success 201 {object} object
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 409 {object} dto.ErrorResponse
 // @Router /admin/roles [post]
@@ -107,7 +107,7 @@ func (h *RoleHandler) CreateRole(c *fiber.Ctx) error {
 // @Param id path string true "Role ID"
 // @Param request body dto.UpdateRoleRequest true "Role data"
 // @Security BearerAuth
-// @Success 200 {object} github_com_minisource_auth_internal_models.Role
+// @Success 200 {object} object
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
 // @Router /admin/roles/{id} [put]
@@ -166,7 +166,7 @@ func (h *RoleHandler) DeleteRole(c *fiber.Ctx) error {
 // @Produce json
 // @Param resource query string false "Filter by resource"
 // @Security BearerAuth
-// @Success 200 {array} github_com_minisource_auth_internal_models.Permission
+// @Success 200 {array} object
 // @Failure 401 {object} dto.ErrorResponse
 // @Router /admin/permissions [get]
 func (h *RoleHandler) ListPermissions(c *fiber.Ctx) error {
@@ -205,7 +205,7 @@ func (h *RoleHandler) ListPermissions(c *fiber.Ctx) error {
 // @Produce json
 // @Param id path string true "Permission ID"
 // @Security BearerAuth
-// @Success 200 {object} github_com_minisource_auth_internal_models.Permission
+// @Success 200 {object} object
 // @Failure 404 {object} dto.ErrorResponse
 // @Router /admin/permissions/{id} [get]
 func (h *RoleHandler) GetPermission(c *fiber.Ctx) error {
@@ -230,7 +230,7 @@ func (h *RoleHandler) GetPermission(c *fiber.Ctx) error {
 // @Produce json
 // @Param request body dto.CreatePermissionRequest true "Permission data"
 // @Security BearerAuth
-// @Success 201 {object} github_com_minisource_auth_internal_models.Permission
+// @Success 201 {object} object
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 409 {object} dto.ErrorResponse
 // @Router /admin/permissions [post]
@@ -262,7 +262,7 @@ func (h *RoleHandler) CreatePermission(c *fiber.Ctx) error {
 // @Param id path string true "Permission ID"
 // @Param request body dto.UpdatePermissionRequest true "Permission data"
 // @Security BearerAuth
-// @Success 200 {object} github_com_minisource_auth_internal_models.Permission
+// @Success 200 {object} object
 // @Failure 400 {object} dto.ErrorResponse
 // @Failure 404 {object} dto.ErrorResponse
 // @Router /admin/permissions/{id} [put]

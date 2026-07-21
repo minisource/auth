@@ -18,6 +18,7 @@ type User struct {
 	FirstName      string         `gorm:"size:100" json:"firstName"`
 	LastName       string         `gorm:"size:100" json:"lastName"`
 	Avatar         string         `gorm:"size:500" json:"avatar,omitempty"`
+	Birthday       *string        `gorm:"type:date" json:"birthday,omitempty"`
 	EmailVerified  bool           `gorm:"default:false" json:"emailVerified"`
 	PhoneVerified  bool           `gorm:"default:false" json:"phoneVerified"`
 	IsActive       bool           `gorm:"default:true" json:"isActive"`

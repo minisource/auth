@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -74,7 +75,7 @@ func main() {
 	dbHealth, redisHealth := initializer.InitHealthCheckers(db, rdb)
 
 	// Initialize handlers
-	handlers := initializer.InitHandlers(services, dbHealth, redisHealth, logger)
+	handlers := initializer.InitHandlers(services, dbHealth, redisHealth, db, logger)
 
 	// Initialize router services
 	routerServices := initializer.InitRouterServices(services, db)
@@ -88,7 +89,7 @@ func main() {
 		logger.Info(logging.General, logging.Startup, "Server starting", map[logging.ExtraKey]interface{}{
 			"address": addr,
 		})
-		if err := app.Listen(addr); err != nil {
+		if err := app.Listen(addr); err != nil && err != http.ErrServerClosed {
 			logger.Fatal(logging.General, logging.Startup, "Failed to start server", map[logging.ExtraKey]interface{}{
 				"error": err.Error(),
 			})

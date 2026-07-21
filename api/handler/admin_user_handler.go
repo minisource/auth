@@ -68,7 +68,10 @@ func (h *AdminUserHandler) ListUsers(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
-	return c.JSON(resp)
+	// Wrap in response builder so frontend's unwrapEnvelope extracts the inner { data, meta } object.
+	// Without this, c.JSON sends raw { data: [...], meta: {...} } and unwrapEnvelope would
+	// strip the 'data' field, returning only the array.
+	return response.New().Data(resp).Send(c)
 }
 
 // GetUser godoc
@@ -209,7 +212,7 @@ func (h *AdminUserHandler) ToggleUserStatus(c *fiber.Ctx) error {
 	}
 
 	status := c.Params("status")
-	isActive := status == "enable"
+	isActive := status == "enable" || status == "active"
 
 	if err := h.userService.ToggleUserStatus(c.Context(), id, isActive); err != nil {
 		return handleAuthError(c, err, h.logger)

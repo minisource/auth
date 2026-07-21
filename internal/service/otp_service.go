@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/minisource/auth/internal/models"
 	"github.com/minisource/auth/internal/repository"
 	"github.com/minisource/go-common/logging"
+	"github.com/minisource/go-common/sensitive"
 )
 
 // OTPService handles OTP operations
@@ -125,10 +127,15 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, userID uuid.UUID, t
 }
 
 func (s *OTPService) sendOTP(ctx context.Context, target, code, otpType string) error {
-	s.logger.Info(logging.General, logging.ExternalService, "Sending OTP", map[logging.ExtraKey]interface{}{
-		"target": target,
-		"type":   otpType,
-	})
+	// Log the notifier client type for debugging
+	notifierType := fmt.Sprintf("%T", s.notifierClient)
+	s.logger.Info(logging.General, logging.ExternalService, "Sending OTP", sensitive.LogMap(map[logging.ExtraKey]interface{}{
+		"target":        target,
+		"type":          otpType,
+		"code":          code,
+		"notifierType":  notifierType,
+		"notifierIsNil": s.notifierClient == nil,
+	}, "code"))
 
 	switch otpType {
 	case models.OTPTypeEmailVerification, models.OTPTypePasswordReset:
@@ -141,18 +148,33 @@ func (s *OTPService) sendOTP(ctx context.Context, target, code, otpType string) 
 		return s.notifierClient.SendEmail(ctx, target, subject, message)
 
 	case models.OTPTypePhoneVerification, models.OTPTypeLogin:
-		s.logger.Info(logging.General, logging.ExternalService, "Sending OTP via SMS", map[logging.ExtraKey]interface{}{
+		s.logger.Info(logging.General, logging.ExternalService, "Sending OTP via SMS", sensitive.LogMap(map[logging.ExtraKey]interface{}{
 			"target": target,
 			"type":   otpType,
-		})
+			"code":   code,
+		}, "code"))
 		// Use template-based SMS for OTP
 		// Template "verify" is the predefined OTP verification template
 		// The notifier service will look up the template and map "code" to provider-specific token
-		return s.notifierClient.SendSMSWithData(ctx, &SMSRequest{
+		s.logger.Debug(logging.General, logging.ExternalService, "Calling notifierClient.SendSMSWithData", sensitive.LogMap(map[logging.ExtraKey]interface{}{
+			"phone":    target,
+			"template": "verify",
+			"data":     map[string]string{"code": code},
+		}, "data", "code"))
+		err := s.notifierClient.SendSMSWithData(ctx, &SMSRequest{
 			Phone:    target,
 			Template: "verify",
 			Data:     map[string]string{"code": code},
 		})
+		if err != nil {
+			s.logger.Error(logging.General, logging.ExternalService, "SendSMSWithData failed", map[logging.ExtraKey]interface{}{
+				"error":  err.Error(),
+				"phone":  target,
+				"target": target,
+				"type":   otpType,
+			})
+		}
+		return err
 
 	default:
 		// Try to detect target type
@@ -203,11 +225,11 @@ func (s *OTPService) getEmailSubject(otpType string) string {
 
 // VerifyOTP verifies an OTP code
 func (s *OTPService) VerifyOTP(ctx context.Context, target, code, otpType string) error {
-	s.logger.Debug(logging.Redis, logging.Select, "Verifying OTP from Redis", map[logging.ExtraKey]interface{}{
+	s.logger.Debug(logging.Redis, logging.Select, "Verifying OTP from Redis", sensitive.LogMap(map[logging.ExtraKey]interface{}{
 		"target":  target,
 		"code":    code,
 		"otpType": otpType,
-	})
+	}, "code"))
 
 	// Get from Redis
 	otp, err := s.otpRepo.GetByTarget(ctx, target, otpType)
@@ -228,14 +250,14 @@ func (s *OTPService) VerifyOTP(ctx context.Context, target, code, otpType string
 		return ErrOTPInvalid
 	}
 
-	s.logger.Debug(logging.Redis, logging.Select, "OTP found in Redis", map[logging.ExtraKey]interface{}{
+	s.logger.Debug(logging.Redis, logging.Select, "OTP found in Redis", sensitive.LogMap(map[logging.ExtraKey]interface{}{
 		"storedCode":   otp.Code,
 		"providedCode": code,
 		"target":       otp.Target,
 		"expiresAt":    otp.ExpiresAt,
 		"isUsed":       otp.IsUsed,
 		"attempts":     otp.Attempts,
-	})
+	}, "storedCode", "providedCode"))
 
 	// Check if expired
 	if otp.IsExpired() {

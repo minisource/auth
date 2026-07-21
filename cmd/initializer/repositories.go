@@ -17,8 +17,10 @@ type Repositories struct {
 	LoginLog      repository.LoginLogRepository
 	Setting       repository.SettingRepository
 	OAuth         repository.OAuthAccountRepository
+	OAuthProvider repository.OAuthProviderRepository
 	RefreshToken  repository.RefreshTokenRepository
 	ServiceClient repository.ServiceClientRepository
+	Tenant        repository.TenantRepository
 }
 
 // InitRepositories creates all repository instances
@@ -32,7 +34,9 @@ func InitRepositories(db *gorm.DB, rdb *redis.Client, logger logging.Logger) *Re
 		LoginLog:      repository.NewLoginLogRepository(db, logger),
 		Setting:       repository.NewSettingRepository(db, logger),
 		OAuth:         repository.NewOAuthAccountRepository(db, logger),
+		OAuthProvider: repository.NewOAuthProviderRepository(db, logger),
 		RefreshToken:  repository.NewRefreshTokenRepository(rdb, logger),
 		ServiceClient: repository.NewServiceClientRepository(db, rdb, logger),
+		Tenant:        repository.NewTenantRepository(db, logger),
 	}
 }

@@ -2,6 +2,7 @@ package initializer
 
 import (
 	"github.com/minisource/auth/config"
+	"github.com/minisource/auth/internal/repository"
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/audit"
 	"github.com/minisource/go-common/logging"
@@ -11,23 +12,41 @@ import (
 
 // Services holds all service instances
 type Services struct {
-	Token       *service.TokenService
-	Password    *service.PasswordService
-	Settings    *service.SettingsService
-	Notifier    service.NotifierClient
-	OTP         *service.OTPService
-	ServiceAuth *service.ServiceAuthService
-	Auth        *service.AuthService
-	OAuth       *service.OAuthService
-	User        *service.UserService
-	Role        *service.RoleService
-	Audit       audit.Logger
+	Token          *service.TokenService
+	KeyProvider    *service.KeyProvider
+	Password       *service.PasswordService
+	Settings       *service.SettingsService
+	Notifier       service.NotifierClient
+	OTP            *service.OTPService
+	ServiceAuth    *service.ServiceAuthService
+	Auth           *service.AuthService
+	OAuth          *service.OAuthService
+	OAuthProvider  service.OAuthProviderService
+	User           *service.UserService
+	Role           *service.RoleService
+	Tenant         service.TenantService
+	Audit          audit.Logger
+
+	// Repositories needed by admin handlers
+	SettingsRepo       repository.SettingRepository
+	SessionRepo        repository.SessionRepository
+	RefreshTokenRepo   repository.RefreshTokenRepository
+	LoginLogRepo       repository.LoginLogRepository
+	ServiceClientRepo  repository.ServiceClientRepository
 }
 
 // InitServices creates all service instances
 func InitServices(cfg *config.Config, repos *Repositories, rdb *redis.Client, db *gorm.DB, logger logging.Logger) *Services {
+	// Initialize key provider (RS256 or HS256)
+	keyProvider, err := service.NewKeyProvider(&cfg.JWT)
+	if err != nil {
+		logger.Fatal(logging.General, logging.Startup, "Failed to initialize key provider", map[logging.ExtraKey]interface{}{
+			"error": err.Error(),
+		})
+	}
+
 	// Initialize basic services
-	tokenService := service.NewTokenService(&cfg.JWT)
+	tokenService := service.NewTokenService(&cfg.JWT, keyProvider)
 	passwordService := service.NewPasswordService(&cfg.Password)
 	settingsService := service.NewSettingsService(cfg, repos.Setting, rdb, logger)
 
@@ -41,7 +60,7 @@ func InitServices(cfg *config.Config, repos *Repositories, rdb *redis.Client, db
 	otpService := service.NewOTPService(&cfg.OTP, repos.OTP, logger, notifierClient, settingsService)
 
 	// Initialize service auth
-	serviceAuthService := service.NewServiceAuthService(&cfg.JWT, repos.ServiceClient, passwordService, logger)
+	serviceAuthService := service.NewServiceAuthService(&cfg.JWT, keyProvider, repos.ServiceClient, passwordService, logger)
 
 	// Initialize auth service
 	authService := service.NewAuthService(
@@ -85,18 +104,34 @@ func InitServices(cfg *config.Config, repos *Repositories, rdb *redis.Client, db
 	// Initialize role service
 	roleService := service.NewRoleService(repos.Role, repos.Permission)
 
+	// Initialize tenant service
+	tenantService := service.NewTenantService(repos.Tenant, repos.User, repos.Role, logger)
+
+	// Initialize OAuth provider service
+	oauthProviderService := service.NewOAuthProviderService(repos.OAuthProvider, logger)
+
 	return &Services{
-		Token:       tokenService,
-		Password:    passwordService,
-		Settings:    settingsService,
-		Notifier:    notifierClient,
-		OTP:         otpService,
-		ServiceAuth: serviceAuthService,
-		Auth:        authService,
-		OAuth:       oauthService,
-		User:        userService,
-		Role:        roleService,
-		Audit:       auditLogger,
+		Token:          tokenService,
+		KeyProvider:    keyProvider,
+		Password:       passwordService,
+		Settings:       settingsService,
+		Notifier:       notifierClient,
+		OTP:            otpService,
+		ServiceAuth:    serviceAuthService,
+		Auth:           authService,
+		OAuth:          oauthService,
+		OAuthProvider:  oauthProviderService,
+		User:           userService,
+		Role:           roleService,
+		Tenant:         tenantService,
+		Audit:          auditLogger,
+
+		// Repositories for admin handlers
+		SettingsRepo:       repos.Setting,
+		SessionRepo:        repos.Session,
+		RefreshTokenRepo:   repos.RefreshToken,
+		LoginLogRepo:       repos.LoginLog,
+		ServiceClientRepo:  repos.ServiceClient,
 	}
 }
 

@@ -58,9 +58,10 @@ type ForgotPasswordRequest struct {
 // === User DTOs ===
 
 type UpdateProfileRequest struct {
-	FirstName string `json:"firstName,omitempty"`
-	LastName  string `json:"lastName,omitempty"`
-	Avatar    string `json:"avatar,omitempty"`
+	FirstName string  `json:"firstName,omitempty"`
+	LastName  string  `json:"lastName,omitempty"`
+	Avatar    string  `json:"avatar,omitempty"`
+	Birthday  *string `json:"birthday,omitempty"`
 }
 
 type ChangePasswordRequest struct {
@@ -164,6 +165,7 @@ type UserInfo struct {
 	LastName      string   `json:"lastName"`
 	Phone         string   `json:"phone,omitempty"`
 	Avatar        string   `json:"avatar,omitempty"`
+	Birthday      *string  `json:"birthday,omitempty"`
 	EmailVerified bool     `json:"emailVerified"`
 	PhoneVerified bool     `json:"phoneVerified"`
 	Roles         []string `json:"roles"`
@@ -179,6 +181,16 @@ type GoogleAuthURLResponse struct {
 	URL string `json:"url"`
 }
 
+// GoogleMobileLoginRequest is the request from mobile app after Google Sign-In.
+// The mobile app obtains idToken + accessToken via the google_sign_in Flutter package.
+type GoogleMobileLoginRequest struct {
+	IDToken      string `json:"idToken" validate:"required"`
+	AccessToken  string `json:"accessToken,omitempty"`
+	DisplayName  string `json:"displayName,omitempty"`
+	Email        string `json:"email,omitempty"`
+	PhotoURL     string `json:"photoUrl,omitempty"`
+}
+
 type MessageResponse struct {
 	Message string `json:"message"`
 }
@@ -187,4 +199,62 @@ type ErrorResponse struct {
 	Error   string `json:"error"`
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+}
+
+// === Userinfo DTOs ===
+
+type UserinfoResponse struct {
+	Sub           string   `json:"sub"`
+	Email         string   `json:"email"`
+	EmailVerified bool     `json:"email_verified"`
+	Phone         string   `json:"phone,omitempty"`
+	PhoneVerified bool     `json:"phone_verified"`
+	Name          string   `json:"name"`
+	GivenName     string   `json:"given_name"`
+	FamilyName    string   `json:"family_name"`
+	Picture       string   `json:"picture,omitempty"`
+	Birthday      *string  `json:"birthday,omitempty"`
+	Roles         []string `json:"roles"`
+	Permissions   []string `json:"permissions"`
+	TenantID      string   `json:"tenant_id,omitempty"`
+	IsSuperAdmin  bool     `json:"is_super_admin"`
+}
+
+// === Introspect DTOs ===
+
+type IntrospectRequest struct {
+	Token         string `json:"token" validate:"required"`
+	TokenTypeHint string `json:"token_type_hint,omitempty"`
+}
+
+type IntrospectResponse struct {
+	Active        bool     `json:"active"`
+	Sub           string   `json:"sub,omitempty"`
+	Email         string   `json:"email,omitempty"`
+	Roles         []string `json:"roles,omitempty"`
+	Permissions   []string `json:"permissions,omitempty"`
+	TenantID      string   `json:"tenant_id,omitempty"`
+	IsSuperAdmin  bool     `json:"is_super_admin,omitempty"`
+	Issuer        string   `json:"iss,omitempty"`
+	Audience      []string `json:"aud,omitempty"`
+	ExpiresAt     int64    `json:"exp,omitempty"`
+	IssuedAt      int64    `json:"iat,omitempty"`
+	TokenType     string   `json:"token_type,omitempty"`
+	SessionID     string   `json:"session_id,omitempty"`
+	ClientID      string   `json:"client_id,omitempty"`
+	ServiceName   string   `json:"service_name,omitempty"`
+	Scopes        []string `json:"scopes,omitempty"`
+}
+
+// === Account Phone DTOs ===
+
+// PhoneStartRequest is sent by an authenticated user to add a phone number.
+type PhoneStartRequest struct {
+	Phone string `json:"phone" validate:"required"`
+}
+
+// PhoneVerifyRequest is sent by an authenticated user to verify OTP and set phone.
+type PhoneVerifyRequest struct {
+	Phone string `json:"phone" validate:"required"`
+	Code  string `json:"code" validate:"required,len=6"`
 }

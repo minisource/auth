@@ -18,6 +18,7 @@ type SessionRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*models.Session, error)
 	GetByAccessToken(ctx context.Context, token string) (*models.Session, error)
 	GetByUserID(ctx context.Context, userID uuid.UUID) ([]models.Session, error)
+	ListAll(ctx context.Context, filter SessionListFilter) ([]SessionWithUser, int64, error)
 	Update(ctx context.Context, session *models.Session) error
 	Revoke(ctx context.Context, id uuid.UUID) error
 	RevokeAllByUserID(ctx context.Context, userID uuid.UUID) error
@@ -26,6 +27,36 @@ type SessionRepository interface {
 	CacheSession(ctx context.Context, session *models.Session, expiry time.Duration) error
 	GetCachedSession(ctx context.Context, sessionID string) (*models.Session, error)
 	InvalidateCachedSession(ctx context.Context, sessionID string) error
+}
+
+// SessionListFilter controls admin session listing.
+type SessionListFilter struct {
+	Search   string
+	UserID   *uuid.UUID
+	IsActive *bool
+	OrderBy  string
+	Sort     string
+	Limit    int
+	Offset   int
+}
+
+// SessionWithUser is a session row enriched with user identity fields.
+type SessionWithUser struct {
+	ID            uuid.UUID  `json:"id"`
+	TenantID      *uuid.UUID `json:"tenantId,omitempty"`
+	UserID        uuid.UUID  `json:"userId"`
+	UserAgent     string     `json:"userAgent,omitempty"`
+	IPAddress     string     `json:"ipAddress,omitempty"`
+	DeviceType    string     `json:"deviceType,omitempty"`
+	IsActive      bool       `json:"isActive"`
+	ExpiresAt     time.Time  `json:"expiresAt"`
+	LastActiveAt  time.Time  `json:"lastActiveAt"`
+	RevokedAt     *time.Time `json:"revokedAt,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+	UpdatedAt     time.Time  `json:"updatedAt"`
+	UserEmail     string     `json:"userEmail"`
+	UserFirstName string     `json:"userFirstName"`
+	UserLastName  string     `json:"userLastName"`
 }
 
 type sessionRepository struct {
@@ -71,6 +102,69 @@ func (r *sessionRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (
 	result := r.db.WithContext(ctx).Where("user_id = ? AND is_active = true", userID).
 		Order("created_at DESC").Find(&sessions)
 	return sessions, result.Error
+}
+
+func (r *sessionRepository) ListAll(ctx context.Context, filter SessionListFilter) ([]SessionWithUser, int64, error) {
+	buildQuery := func() *gorm.DB {
+		q := r.db.WithContext(ctx).Table("sessions").
+			Joins("LEFT JOIN users ON users.id = sessions.user_id")
+
+		if filter.Search != "" {
+			pattern := "%" + filter.Search + "%"
+			q = q.Where(
+				"users.email ILIKE ? OR users.first_name ILIKE ? OR users.last_name ILIKE ? OR sessions.ip_address ILIKE ? OR sessions.user_agent ILIKE ? OR CAST(sessions.user_id AS TEXT) ILIKE ?",
+				pattern, pattern, pattern, pattern, pattern, pattern,
+			)
+		}
+		if filter.UserID != nil {
+			q = q.Where("sessions.user_id = ?", *filter.UserID)
+		}
+		if filter.IsActive != nil {
+			q = q.Where("sessions.is_active = ?", *filter.IsActive)
+		}
+		return q
+	}
+
+	var total int64
+	if err := buildQuery().Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	orderBy := "sessions.created_at"
+	switch filter.OrderBy {
+	case "lastActiveAt", "last_active_at":
+		orderBy = "sessions.last_active_at"
+	case "expiresAt", "expires_at":
+		orderBy = "sessions.expires_at"
+	case "ipAddress", "ip_address":
+		orderBy = "sessions.ip_address"
+	case "createdAt", "created_at", "":
+		orderBy = "sessions.created_at"
+	}
+
+	sortDir := "DESC"
+	if filter.Sort == "asc" {
+		sortDir = "ASC"
+	}
+
+	var sessions []SessionWithUser
+	result := buildQuery().
+		Select(`sessions.id, sessions.tenant_id, sessions.user_id, sessions.user_agent, sessions.ip_address,
+			sessions.device_type, sessions.is_active, sessions.expires_at, sessions.last_active_at,
+			sessions.revoked_at, sessions.created_at, sessions.updated_at,
+			COALESCE(users.email, '') AS user_email,
+			COALESCE(users.first_name, '') AS user_first_name,
+			COALESCE(users.last_name, '') AS user_last_name`).
+		Order(orderBy + " " + sortDir).
+		Limit(filter.Limit).
+		Offset(filter.Offset).
+		Scan(&sessions)
+
+	if result.Error != nil {
+		return nil, 0, result.Error
+	}
+
+	return sessions, total, nil
 }
 
 func (r *sessionRepository) Update(ctx context.Context, session *models.Session) error {

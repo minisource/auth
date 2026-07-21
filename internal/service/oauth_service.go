@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/minisource/auth/config"
 	"github.com/minisource/auth/internal/models"
@@ -431,6 +433,382 @@ func (s *OAuthService) createOAuthSession(ctx context.Context, user *models.User
 			Roles:         roles,
 		},
 	}, nil
+}
+
+// GoogleIDTokenClaims represents the parsed claims from a verified Google ID token.
+type GoogleIDTokenClaims struct {
+	jwt.RegisteredClaims
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Picture       string `json:"picture"`
+	AtHash        string `json:"at_hash"`
+}
+
+// GoogleIDTokenInfo represents the parsed claims from a verified Google ID token.
+type GoogleIDTokenInfo struct {
+	Sub           string `json:"sub"`
+	Email         string `json:"email"`
+	VerifiedEmail bool   `json:"email_verified"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Picture       string `json:"picture"`
+}
+
+// googleJWKS is the cached Google JSON Web Key Set.
+type googleJWKSCache struct {
+	mu     sync.RWMutex
+	keys   map[string][]byte // kid → PEM certificate bytes
+	expiry time.Time
+}
+
+var googleKeys = &googleJWKSCache{}
+
+// Google JWKS endpoint
+const googleCertsURL = "https://www.googleapis.com/oauth2/v3/certs"
+
+// fetchGoogleCerts fetches Google's public keys and caches them as PEM certificates.
+func (s *OAuthService) fetchGoogleCerts(ctx context.Context) (map[string][]byte, error) {
+	googleKeys.mu.RLock()
+	if time.Now().Before(googleKeys.expiry) && len(googleKeys.keys) > 0 {
+		keys := googleKeys.keys
+		googleKeys.mu.RUnlock()
+		return keys, nil
+	}
+	googleKeys.mu.RUnlock()
+
+	googleKeys.mu.Lock()
+	defer googleKeys.mu.Unlock()
+
+	// Double-check after acquiring write lock
+	if time.Now().Before(googleKeys.expiry) && len(googleKeys.keys) > 0 {
+		return googleKeys.keys, nil
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", googleCertsURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Google certs request: %w", err)
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch Google certs: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read Google certs: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Google certs returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse the JWKS response: {"keys": [...]}
+	var jwks struct {
+		Keys []json.RawMessage `json:"keys"`
+	}
+	if err := json.Unmarshal(body, &jwks); err != nil {
+		return nil, fmt.Errorf("failed to parse Google certs: %w", err)
+	}
+
+	keys := make(map[string][]byte, len(jwks.Keys))
+	for _, rawKey := range jwks.Keys {
+		var keyData struct {
+			Kid string   `json:"kid"`
+			Use string   `json:"use"`
+			Alg string   `json:"alg"`
+			X5c []string `json:"x5c"`
+		}
+		if err := json.Unmarshal(rawKey, &keyData); err != nil {
+			continue
+		}
+
+		// Convert x5c[0] (base64 DER) to PEM format for golang-jwt
+		if len(keyData.X5c) == 0 {
+			s.logger.Warn(logging.General, logging.ExternalService, "Google cert missing x5c",
+				map[logging.ExtraKey]interface{}{"kid": keyData.Kid})
+			continue
+		}
+
+		pemCert := derToPEM(keyData.X5c[0])
+		keys[keyData.Kid] = pemCert
+	}
+
+	if len(keys) == 0 {
+		return nil, fmt.Errorf("no valid keys found in Google certs")
+	}
+
+	googleKeys.keys = keys
+	googleKeys.expiry = time.Now().Add(5 * time.Minute)
+
+	s.logger.Debug(logging.General, logging.ExternalService, "Fetched Google certs",
+		map[logging.ExtraKey]interface{}{"keyCount": len(keys)})
+
+	return keys, nil
+}
+
+// derToPEM converts a base64-encoded DER certificate to PEM format.
+func derToPEM(base64DER string) []byte {
+	return []byte("-----BEGIN CERTIFICATE-----\n" + base64DER + "\n-----END CERTIFICATE-----")
+}
+
+// VerifyGoogleIDToken verifies a Google ID token locally using Google's public keys (JWKS).
+// Falls back to the deprecated tokeninfo endpoint if JWKS verification fails.
+func (s *OAuthService) VerifyGoogleIDToken(ctx context.Context, idToken string) (*GoogleIDTokenInfo, error) {
+	googleCfg := s.settingsService.GetGoogleOAuthConfig(ctx)
+
+	// Attempt local verification first (production-ready, uses Google's JWKS)
+	info, err := s.verifyIDTokenLocally(ctx, idToken, googleCfg.ClientID)
+	if err == nil {
+		return info, nil
+	}
+
+	// Log the local verification failure for debugging
+	s.logger.Warn(logging.General, logging.ExternalService, "Local Google ID token verification failed, falling back to tokeninfo",
+		map[logging.ExtraKey]interface{}{"error": err.Error()})
+	fmt.Printf("\n=== JWKS LOCAL VERIFY FAILED (falling back to tokeninfo) ===\n%s\n==============================================================\n\n", err.Error())
+
+	// Fall back to tokeninfo for backward compatibility
+	return s.verifyIDTokenWithTokeninfo(ctx, idToken, googleCfg)
+}
+
+// verifyIDTokenLocally verifies a Google ID token using Google's public keys.
+func (s *OAuthService) verifyIDTokenLocally(ctx context.Context, idToken, expectedAudience string) (*GoogleIDTokenInfo, error) {
+	certs, err := s.fetchGoogleCerts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch Google certs: %w", err)
+	}
+
+	var claims GoogleIDTokenClaims
+	token, err := jwt.ParseWithClaims(idToken, &claims, func(token *jwt.Token) (interface{}, error) {
+		// Verify the signing algorithm (Google uses RS256 or ES256)
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			if _, ok := token.Method.(*jwt.SigningMethodECDSA); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+		}
+
+		// Get the key ID from the token header
+		kid, ok := token.Header["kid"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing kid in token header")
+		}
+
+		// Look up the key in the JWKS
+		pemBytes, ok := certs[kid]
+		if !ok {
+			// Key might have been rotated; force a refresh
+			googleKeys.mu.Lock()
+			googleKeys.expiry = time.Time{} // force refresh next time
+			googleKeys.mu.Unlock()
+			return nil, fmt.Errorf("key %s not found in Google certs", kid)
+		}
+
+		// Parse the PEM certificate into a public key
+		return jwt.ParseRSAPublicKeyFromPEM(pemBytes)
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("token verification failed: %w", err)
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("token is invalid")
+	}
+
+	// Validate claims
+	if err := claims.ValidateGoogleClaims(expectedAudience, s.cfg.IsProduction(), s.logger); err != nil {
+		return nil, err
+	}
+
+	return &GoogleIDTokenInfo{
+		Sub:           claims.Subject,
+		Email:         claims.Email,
+		VerifiedEmail: claims.EmailVerified,
+		Name:          claims.Name,
+		GivenName:     claims.GivenName,
+		FamilyName:    claims.FamilyName,
+		Picture:       claims.Picture,
+	}, nil
+}
+
+// ValidateGoogleClaims validates the standard Google ID token claims.
+func (c *GoogleIDTokenClaims) ValidateGoogleClaims(expectedAudience string, isProd bool, logger logging.Logger) error {
+	// Validate issuer
+	validIssuers := []string{"accounts.google.com", "https://accounts.google.com"}
+	issuerValid := false
+	for _, issuer := range validIssuers {
+		if c.Issuer == issuer {
+			issuerValid = true
+			break
+		}
+	}
+	if !issuerValid {
+		return fmt.Errorf("invalid issuer: %s", c.Issuer)
+	}
+
+	// Validate audience
+	if expectedAudience != "" && c.Audience != nil {
+		audMatch := false
+		for _, aud := range c.Audience {
+			if aud == expectedAudience {
+				audMatch = true
+				break
+			}
+		}
+		if !audMatch {
+			if isProd {
+				return fmt.Errorf("audience mismatch: expected %s, got %v", expectedAudience, c.Audience)
+			}
+			// In dev, log but don't fail
+			logger.Warn(logging.General, logging.Api, "Google ID token audience mismatch",
+				map[logging.ExtraKey]interface{}{"aud": c.Audience, "expectedClientId": expectedAudience})
+		}
+	}
+
+	// Validate expiry (jwt library does this automatically, but double-check)
+	if c.ExpiresAt != nil && time.Now().After(c.ExpiresAt.Time) {
+		return fmt.Errorf("token expired at %v", c.ExpiresAt.Time)
+	}
+
+	return nil
+}
+
+// verifyIDTokenWithTokeninfo is the legacy fallback using Google's tokeninfo endpoint.
+func (s *OAuthService) verifyIDTokenWithTokeninfo(ctx context.Context, idToken string, googleCfg config.GoogleOAuthConfig) (*GoogleIDTokenInfo, error) {
+	// Use Google's oauth2/v3/tokeninfo endpoint (no client secret required)
+	verifyURL := fmt.Sprintf("https://oauth2.googleapis.com/tokeninfo?id_token=%s", idToken)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", verifyURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("google token verification request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("google token verification failed: %s", string(body))
+	}
+
+	// Unmarshal into raw map first because tokeninfo returns email_verified as
+	// a string "true"/"false" instead of a boolean (known Google API inconsistency).
+	var raw map[string]interface{}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, err
+	}
+
+	// Parse email_verified flexibly (string or bool)
+	emailVerified := false
+	switch v := raw["email_verified"].(type) {
+	case bool:
+		emailVerified = v
+	case string:
+		emailVerified = v == "true"
+	}
+
+	info := &GoogleIDTokenInfo{
+		Sub:           getStringField(raw, "sub"),
+		Email:         getStringField(raw, "email"),
+		VerifiedEmail: emailVerified,
+		Name:          getStringField(raw, "name"),
+		GivenName:     getStringField(raw, "given_name"),
+		FamilyName:    getStringField(raw, "family_name"),
+		Picture:       getStringField(raw, "picture"),
+	}
+
+	// Verify the token was issued for our client (audience check)
+	if aud, ok := raw["aud"]; ok {
+		audStr := fmt.Sprintf("%v", aud)
+		if audStr != googleCfg.ClientID {
+			s.logger.Warn(logging.General, logging.Api, "Google ID token audience mismatch",
+				map[logging.ExtraKey]interface{}{"aud": audStr, "clientId": googleCfg.ClientID})
+			if s.cfg.IsProduction() {
+				return nil, ErrOAuthFailed
+			}
+		}
+	}
+
+	return info, nil
+}
+
+// getStringField safely extracts a string field from a tokeninfo response map.
+func getStringField(raw map[string]interface{}, key string) string {
+	if v, ok := raw[key]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// HandleGoogleMobileLogin processes a Google ID token from mobile app.
+// It verifies the token, finds or creates a user, and returns application tokens.
+func (s *OAuthService) HandleGoogleMobileLogin(
+	ctx context.Context,
+	idToken, accessToken, displayName, email, photoURL, ipAddress, userAgent string,
+) (*AuthResponse, error) {
+	// Verify the ID token with Google
+	info, err := s.VerifyGoogleIDToken(ctx, idToken)
+	if err != nil {
+		s.logger.Error(logging.General, logging.ExternalService, "Failed to verify Google ID token",
+			map[logging.ExtraKey]interface{}{"error": err.Error()})
+		fmt.Printf("\n=== GOOGLE MOBILE LOGIN ERROR ===\n%s\n===================================\n\n", err.Error())
+		return nil, ErrOAuthFailed
+	}
+
+	// Use mobile-provided values as fallback if token info is incomplete
+	if info.Name == "" && displayName != "" {
+		info.Name = displayName
+	}
+	if info.Email == "" && email != "" {
+		info.Email = email
+	}
+	if info.Picture == "" && photoURL != "" {
+		info.Picture = photoURL
+	}
+
+	// Build a GoogleUserInfo for the existing findOrCreateOAuthUser flow
+	userInfo := &GoogleUserInfo{
+		ID:            info.Sub,
+		Email:         info.Email,
+		VerifiedEmail: info.VerifiedEmail,
+		Name:          info.Name,
+		GivenName:     info.GivenName,
+		FamilyName:    info.FamilyName,
+		Picture:       info.Picture,
+	}
+
+	// Build a minimal token response (access token from mobile, no refresh token from Google)
+	tokenResp := &GoogleTokenResponse{
+		AccessToken: accessToken,
+		IDToken:     idToken,
+		ExpiresIn:   3600, // Mobile access tokens typically last 1 hour
+	}
+
+	// Find or create user
+	user, err := s.findOrCreateOAuthUser(ctx, userInfo, tokenResp)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create session
+	return s.createOAuthSession(ctx, user, ipAddress, userAgent)
 }
 
 // UnlinkGoogleAccount removes Google OAuth link from user account

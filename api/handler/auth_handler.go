@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/minisource/auth/api/dto"
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/i18n"
@@ -15,20 +16,29 @@ import (
 
 // AuthHandler handles authentication endpoints
 type AuthHandler struct {
-	authService  *service.AuthService
-	oauthService *service.OAuthService
-	logger       logging.Logger
+	authService      *service.AuthService
+	oauthService     *service.OAuthService
+	tokenService     *service.TokenService
+	serviceAuthService *service.ServiceAuthService
+	keyProvider      *service.KeyProvider
+	logger           logging.Logger
 }
 
 func NewAuthHandler(
 	authService *service.AuthService,
 	oauthService *service.OAuthService,
+	tokenService *service.TokenService,
+	serviceAuthService *service.ServiceAuthService,
+	keyProvider *service.KeyProvider,
 	logger logging.Logger,
 ) *AuthHandler {
 	return &AuthHandler{
-		authService:  authService,
-		oauthService: oauthService,
-		logger:       logger,
+		authService:      authService,
+		oauthService:     oauthService,
+		tokenService:     tokenService,
+		serviceAuthService: serviceAuthService,
+		keyProvider:      keyProvider,
+		logger:           logger,
 	}
 }
 
@@ -293,6 +303,44 @@ func (h *AuthHandler) GoogleCallback(c *fiber.Ctx) error {
 	return c.JSON(resp)
 }
 
+// GoogleMobileLogin godoc
+// @Summary Google Sign-In for mobile
+// @Description Exchange a Google ID token (from mobile google_sign_in) for application tokens
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body dto.GoogleMobileLoginRequest true "Google ID token"
+// @Success 200 {object} dto.AuthResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /auth/google/mobile [post]
+func (h *AuthHandler) GoogleMobileLogin(c *fiber.Ctx) error {
+	var req dto.GoogleMobileLoginRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "INVALID_REQUEST", i18n.T(c.Context(), "errors.invalid_request"))
+	}
+
+	if req.IDToken == "" {
+		return response.BadRequest(c, "INVALID_REQUEST", "Google ID token required")
+	}
+
+	resp, err := h.oauthService.HandleGoogleMobileLogin(
+		c.Context(),
+		req.IDToken,
+		req.AccessToken,
+		req.DisplayName,
+		req.Email,
+		req.PhotoURL,
+		c.IP(),
+		c.Get("User-Agent"),
+	)
+	if err != nil {
+		return handleAuthError(c, err, h.logger)
+	}
+
+	return response.OK(c, resp)
+}
+
 // Helper functions
 
 func getTokenFromHeader(c *fiber.Ctx) string {
@@ -343,6 +391,12 @@ func handleAuthError(c *fiber.Ctx, err error, logger logging.Logger) error {
 
 	// Handle legacy errors
 	switch err {
+	case service.ErrOAuthFailed:
+		return response.Unauthorized(c, i18n.T(ctx, "errors.oauth_failed"))
+	case service.ErrOAuthNotConfigured:
+		return response.ServiceUnavailable(c, i18n.T(ctx, "errors.oauth_not_configured"))
+	case service.ErrOAuthUnlinkFailed:
+		return response.BadRequest(c, "OAUTH_UNLINK_FAILED", i18n.T(ctx, "errors.oauth_unlink_failed"))
 	case service.ErrInvalidCredentials:
 		return response.Unauthorized(c, i18n.T(ctx, "errors.invalid_credentials"))
 	case service.ErrUserDisabled:
@@ -505,4 +559,243 @@ func (h *AuthHandler) ResendVerification(c *fiber.Ctx) error {
 	return response.OK(c, dto.MessageResponse{
 		Message: i18n.T(c.Context(), "auth.otp_sent"),
 	})
+}
+
+// JWKS godoc
+// @Summary JSON Web Key Set
+// @Description Return public keys for JWT validation
+// @Tags JWKS
+// @Produce json
+// @Success 200 {object} service.JWKSResponse
+// @Router /.well-known/jwks.json [get]
+func (h *AuthHandler) JWKS(c *fiber.Ctx) error {
+	jwks, err := h.keyProvider.GenerateJWKS()
+	if err != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "JWKS not available",
+		})
+	}
+
+	c.Set("Cache-Control", "public, max-age=300")
+	return c.JSON(jwks)
+}
+
+// Userinfo godoc
+// @Summary User info endpoint
+// @Description Return claims about the authenticated user (OIDC-compatible)
+// @Tags Auth
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} dto.UserinfoResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /auth/userinfo [get]
+func (h *AuthHandler) Userinfo(c *fiber.Ctx) error {
+	token := getTokenFromHeader(c)
+	if token == "" {
+		return response.Unauthorized(c, "No token provided")
+	}
+
+	claims, err := h.tokenService.ValidateToken(token)
+	if err != nil {
+		return response.Unauthorized(c, "Invalid token")
+	}
+
+	if claims.TokenType != "access" {
+		return response.Unauthorized(c, "Token is not an access token")
+	}
+
+	phone := ""
+	// Try to get user details from the auth service for richer response
+	userID, _ := uuid.Parse(claims.UserID)
+	user, _ := h.authService.GetUserByID(c.Context(), userID)
+	if user != nil {
+		if user.Phone != nil {
+			phone = *user.Phone
+		}
+		name := user.FirstName + " " + user.LastName
+
+		return c.JSON(dto.UserinfoResponse{
+			Sub:           claims.UserID,
+			Email:         claims.Email,
+			EmailVerified: user.EmailVerified,
+			Phone:         phone,
+			PhoneVerified: user.PhoneVerified,
+			Name:          name,
+			GivenName:     user.FirstName,
+			FamilyName:    user.LastName,
+			Picture:       user.Avatar,
+			Birthday:      user.Birthday,
+			Roles:         claims.Roles,
+			Permissions:   claims.Permissions,
+			TenantID:      claims.TenantID,
+			IsSuperAdmin:  user.IsSuperAdmin,
+		})
+	}
+
+	return c.JSON(dto.UserinfoResponse{
+		Sub:         claims.UserID,
+		Email:       claims.Email,
+		Roles:       claims.Roles,
+		Permissions: claims.Permissions,
+		TenantID:    claims.TenantID,
+	})
+}
+
+// Introspect godoc
+// @Summary Token introspection
+// @Description Introspect a JWT token (RFC 7662 compatible)
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body dto.IntrospectRequest true "Token to introspect"
+// @Success 200 {object} dto.IntrospectResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Router /auth/introspect [post]
+func (h *AuthHandler) Introspect(c *fiber.Ctx) error {
+	var req dto.IntrospectRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "INVALID_REQUEST", "Invalid request body")
+	}
+
+	if req.Token == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.IntrospectResponse{
+			Active: false,
+		})
+	}
+
+	// Try user token first
+	if claims, err := h.tokenService.ValidateToken(req.Token); err == nil {
+		if claims.TokenType == "access" {
+			return c.JSON(dto.IntrospectResponse{
+				Active:      true,
+				Sub:         claims.UserID,
+				Email:       claims.Email,
+				Roles:       claims.Roles,
+				Permissions: claims.Permissions,
+				TenantID:    claims.TenantID,
+				Issuer:      claims.Issuer,
+				Audience:    claims.Audience,
+				TokenType:   claims.TokenType,
+				SessionID:   claims.SessionID,
+			})
+		}
+		if claims.TokenType == "refresh" {
+			return c.JSON(dto.IntrospectResponse{
+				Active:    true,
+				Sub:       claims.UserID,
+				TokenType: claims.TokenType,
+				SessionID: claims.SessionID,
+				Issuer:    claims.Issuer,
+				Audience:  claims.Audience,
+			})
+		}
+	}
+
+	// Try service token
+	if h.serviceAuthService != nil {
+		if claims, err := h.serviceAuthService.ValidateServiceToken(c.Context(), req.Token); err == nil {
+			var expiresAt int64
+			if claims.ExpiresAt != nil {
+				expiresAt = claims.ExpiresAt.Unix()
+			}
+			return c.JSON(dto.IntrospectResponse{
+				Active:      true,
+				Sub:         claims.ClientID,
+				ClientID:    claims.ClientID,
+				ServiceName: claims.Name,
+				Scopes:      claims.Scopes,
+				TenantID:    claims.TenantID,
+				Issuer:      claims.Issuer,
+				Audience:    claims.Audience,
+				ExpiresAt:   expiresAt,
+				TokenType:   "service",
+			})
+		}
+	}
+
+	return c.JSON(dto.IntrospectResponse{
+		Active: false,
+	})
+}
+
+// ─── Account Phone (Authenticated) ─────────────────────────
+
+// PhoneStart godoc
+// @Summary Start phone verification
+// @Description Initiate phone number verification for current authenticated user. Checks duplicate before sending OTP.
+// @Tags Account
+// @Accept json
+// @Produce json
+// @Param request body dto.PhoneStartRequest true "Phone number"
+// @Security BearerAuth
+// @Success 200 {object} dto.MessageResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Router /account/phone/start [post]
+func (h *AuthHandler) PhoneStart(c *fiber.Ctx) error {
+	userID := getUserIDFromContext(c)
+	if userID == uuid.Nil {
+		return response.Unauthorized(c, "Authentication required")
+	}
+
+	var req dto.PhoneStartRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "INVALID_REQUEST", i18n.T(c.Context(), "errors.invalid_request"))
+	}
+
+	otpResp, err := h.authService.StartPhoneVerification(c.Context(), userID, req.Phone)
+	if err != nil {
+		return handleAuthError(c, err, h.logger)
+	}
+
+	// If phone already verified, return early
+	if otpResp.ExpiresIn == 0 {
+		msg := i18n.T(c.Context(), "auth.phone_already_verified")
+		if msg == "auth.phone_already_verified" {
+			msg = "Phone number is already verified"
+		}
+		return response.OK(c, map[string]interface{}{
+			"message":    msg,
+			"alreadySet": true,
+		})
+	}
+
+	return response.OK(c, map[string]interface{}{
+		"message":   i18n.T(c.Context(), "auth.otp_sent"),
+		"expiresAt": otpResp.ExpiresAt,
+		"expiresIn": otpResp.ExpiresIn,
+	})
+}
+
+// PhoneVerify godoc
+// @Summary Verify phone number
+// @Description Verify OTP and set phone number for current authenticated user.
+// @Tags Account
+// @Accept json
+// @Produce json
+// @Param request body dto.PhoneVerifyRequest true "Phone and OTP code"
+// @Security BearerAuth
+// @Success 200 {object} dto.UserInfo
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Router /account/phone/verify [post]
+func (h *AuthHandler) PhoneVerify(c *fiber.Ctx) error {
+	userID := getUserIDFromContext(c)
+	if userID == uuid.Nil {
+		return response.Unauthorized(c, "Authentication required")
+	}
+
+	var req dto.PhoneVerifyRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "INVALID_REQUEST", i18n.T(c.Context(), "errors.invalid_request"))
+	}
+
+	user, err := h.authService.VerifyPhone(c.Context(), userID, req.Phone, req.Code)
+	if err != nil {
+		return handleAuthError(c, err, h.logger)
+	}
+
+	return response.OK(c, toUserInfo(user))
 }

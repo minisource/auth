@@ -7,9 +7,10 @@ WORKDIR /app
 RUN apk add --no-cache git
 
 # Copy go.mod and go.sum first for better caching
-COPY auth/go.mod auth/go.sum ./auth/
-COPY go-common/ ./go-common/
-COPY go-sdk/ ./go-sdk/
+# Note: Build context should be at project root (../../ from this Dockerfile)
+COPY auth/backend/go.mod auth/backend/go.sum ./auth/
+COPY go-common/backend/ ./go-common/
+COPY go-sdk/backend/ ./go-sdk/
 
 WORKDIR /app/auth
 
@@ -17,7 +18,7 @@ WORKDIR /app/auth
 RUN go mod download
 
 # Copy source code
-COPY auth/ ./
+COPY auth/backend/ ./
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/auth-server ./cmd/main.go
@@ -38,7 +39,7 @@ RUN addgroup -g 1001 -S appgroup && \
 COPY --from=builder /app/auth-server /app/auth-server
 
 # Copy config files
-COPY auth/.env.example /app/.env.example
+COPY auth/backend/.env.example /app/.env.example
 
 # Create logs directory
 RUN mkdir -p /app/logs && chown -R appuser:appgroup /app

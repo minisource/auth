@@ -48,6 +48,7 @@ type UpdateProfileRequest struct {
 	FirstName string
 	LastName  string
 	Avatar    string
+	Birthday  *string
 }
 
 // UpdateProfile updates user profile
@@ -65,6 +66,9 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID uuid.UUID, req *
 	user.LastName = req.LastName
 	if req.Avatar != "" {
 		user.Avatar = req.Avatar
+	}
+	if req.Birthday != nil {
+		user.Birthday = req.Birthday
 	}
 
 	if err := s.userRepo.Update(ctx, user); err != nil {
@@ -156,13 +160,18 @@ type ListUsersRequest struct {
 	IsActive *bool
 }
 
+// PaginationMeta holds pagination metadata
+type PaginationMeta struct {
+	Page       int   `json:"page"`
+	PageSize   int   `json:"pageSize"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"totalPages"`
+}
+
 // ListUsersResponse represents user list response
 type ListUsersResponse struct {
-	Users      []models.User `json:"users"`
-	Total      int64         `json:"total"`
-	Page       int           `json:"page"`
-	PageSize   int           `json:"pageSize"`
-	TotalPages int           `json:"totalPages"`
+	Data []models.User `json:"data"`
+	Meta PaginationMeta `json:"meta"`
 }
 
 // ListUsers returns paginated user list (admin)
@@ -187,11 +196,13 @@ func (s *UserService) ListUsers(ctx context.Context, req *ListUsersRequest) (*Li
 	}
 
 	return &ListUsersResponse{
-		Users:      users,
-		Total:      total,
-		Page:       req.Page,
-		PageSize:   req.PageSize,
-		TotalPages: totalPages,
+		Data: users,
+		Meta: PaginationMeta{
+			Page:       req.Page,
+			PageSize:   req.PageSize,
+			Total:      total,
+			TotalPages: totalPages,
+		},
 	}, nil
 }
 

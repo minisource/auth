@@ -4,10 +4,6 @@ go 1.24.0
 
 toolchain go1.24.4
 
-replace github.com/minisource/go-common => ../go-common
-
-replace github.com/minisource/go-sdk => ../go-sdk
-
 require (
 	github.com/gofiber/adaptor/v2 v2.2.1
 	github.com/gofiber/fiber/v2 v2.52.11
@@ -17,8 +13,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.11.1
-	github.com/minisource/go-common v0.0.4-0.20250402190339-caa3304676a9
-	github.com/minisource/go-sdk v0.0.0-00010101000000-000000000000
+	github.com/minisource/go-common v20260605-164702
+	github.com/minisource/go-sdk v20260605-164717
 	github.com/prometheus/client_golang v1.20.5
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/stretchr/testify v1.11.1

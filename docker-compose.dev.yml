@@ -17,8 +17,6 @@ services:
     volumes:
       - auth-postgres-data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    networks:
-      - auth-dev-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-auth_db}"]
@@ -39,8 +37,6 @@ services:
       - "${REDIS_PORT:-6380}:6379"
     volumes:
       - auth-redis-data:/data
-    networks:
-      - auth-dev-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -55,8 +51,6 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-auth}-adminer
     ports:
       - "8081:8080"
-    networks:
-      - auth-dev-network
     depends_on:
       - auth-postgres
     profiles:
@@ -70,8 +64,6 @@ services:
       REDIS_HOSTS: local:auth-redis:6379
     ports:
       - "8082:8081"
-    networks:
-      - auth-dev-network
     depends_on:
       - auth-redis
     profiles:
@@ -82,8 +74,3 @@ volumes:
     driver: local
   auth-redis-data:
     driver: local
-
-networks:
-  auth-dev-network:
-    driver: bridge
-    name: minisource-dev

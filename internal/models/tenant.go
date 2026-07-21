@@ -77,6 +77,30 @@ func (l *TenantLimits) Scan(value interface{}) error {
 	return json.Unmarshal(bytes, l)
 }
 
+// JSONB is a generic map type for JSONB columns with proper Value/Scan
+type JSONB map[string]interface{}
+
+// Value implements driver.Valuer for database storage
+func (j JSONB) Value() (driver.Value, error) {
+	if j == nil {
+		return "{}", nil
+	}
+	return json.Marshal(j)
+}
+
+// Scan implements sql.Scanner for database retrieval
+func (j *JSONB) Scan(value interface{}) error {
+	if value == nil {
+		*j = JSONB{}
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return json.Unmarshal([]byte(value.(string)), j)
+	}
+	return json.Unmarshal(bytes, j)
+}
+
 // Tenant represents a tenant/organization in a multi-tenant system
 type Tenant struct {
 	ID          uuid.UUID    `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
@@ -92,7 +116,7 @@ type Tenant struct {
 	// JSONB fields with custom types
 	Settings TenantSettings `gorm:"type:jsonb;default:'{}'" json:"settings"`
 	Limits   TenantLimits   `gorm:"type:jsonb;default:'{}'" json:"limits"`
-	Metadata string         `gorm:"type:jsonb;default:'{}'" json:"metadata,omitempty"`
+	Metadata JSONB          `gorm:"type:jsonb;default:'{}'" json:"metadata,omitempty"`
 
 	// Subscription/Plan info
 	Plan         string     `gorm:"size:50;default:'free'" json:"plan"`
@@ -106,7 +130,7 @@ type Tenant struct {
 	ContactPhone string `gorm:"size:20" json:"contactPhone,omitempty"`
 
 	// Billing address
-	BillingAddress string `gorm:"type:jsonb" json:"billingAddress,omitempty"`
+	BillingAddress JSONB `gorm:"type:jsonb" json:"billingAddress,omitempty"`
 
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`

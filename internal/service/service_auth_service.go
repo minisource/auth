@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -25,6 +26,7 @@ type ServiceTokenClaims struct {
 // ServiceAuthService handles service-to-service authentication
 type ServiceAuthService struct {
 	cfg               *config.JWTConfig
+	keyProv           *KeyProvider
 	serviceClientRepo repository.ServiceClientRepository
 	passwordService   *PasswordService
 	logger            logging.Logger
@@ -32,12 +34,14 @@ type ServiceAuthService struct {
 
 func NewServiceAuthService(
 	cfg *config.JWTConfig,
+	keyProv *KeyProvider,
 	serviceClientRepo repository.ServiceClientRepository,
 	passwordService *PasswordService,
 	logger logging.Logger,
 ) *ServiceAuthService {
 	return &ServiceAuthService{
 		cfg:               cfg,
+		keyProv:           keyProv,
 		serviceClientRepo: serviceClientRepo,
 		passwordService:   passwordService,
 		logger:            logger,
@@ -120,6 +124,12 @@ func (s *ServiceAuthService) GenerateServiceToken(client *models.ServiceClient) 
 		tenantIDStr = client.TenantID.String()
 	}
 
+	// Build audience list
+	audiences := []string{s.cfg.Audience}
+	if s.cfg.Audience != "" {
+		audiences = []string{s.cfg.Audience}
+	}
+
 	claims := ServiceTokenClaims{
 		ClientID: client.ClientID,
 		TenantID: tenantIDStr,
@@ -129,6 +139,7 @@ func (s *ServiceAuthService) GenerateServiceToken(client *models.ServiceClient) 
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    s.cfg.Issuer,
 			Subject:   client.ID.String(),
+			Audience:  audiences,
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
@@ -136,8 +147,9 @@ func (s *ServiceAuthService) GenerateServiceToken(client *models.ServiceClient) 
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(s.cfg.Secret))
+	token := jwt.NewWithClaims(s.keyProv.GetSigningMethod(), claims)
+	token.Header["kid"] = s.keyProv.GetKeyID()
+	tokenString, err := s.keyProv.Sign(token, s.cfg.Secret)
 	return tokenString, expiresAt, err
 }
 
@@ -155,10 +167,35 @@ func (s *ServiceAuthService) ValidateServiceToken(ctx context.Context, tokenStri
 	}
 
 	token, err := jwt.ParseWithClaims(tokenString, &ServiceTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		alg := token.Header["alg"]
+		if alg == nil {
 			return nil, ErrTokenInvalid
 		}
-		return []byte(s.cfg.Secret), nil
+
+		algStr, ok := alg.(string)
+		if !ok {
+			return nil, ErrTokenInvalid
+		}
+
+		if algStr == "none" {
+			return nil, ErrTokenInvalid
+		}
+
+		if algStr == "RS256" {
+			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, ErrTokenInvalid
+			}
+			return s.keyProv.GetVerifyKey(token)
+		}
+
+		if algStr == "HS256" {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, ErrTokenInvalid
+			}
+			return []byte(s.cfg.Secret), nil
+		}
+
+		return nil, fmt.Errorf("unsupported algorithm: %s", algStr)
 	})
 
 	if err != nil {
@@ -267,4 +304,113 @@ func joinScopes(scopes []string) string {
 		result += "," + scopes[i]
 	}
 	return result
+}
+
+// ListServiceClients returns all service clients
+func (s *ServiceAuthService) ListServiceClients(ctx context.Context) ([]models.ServiceClient, error) {
+	return s.serviceClientRepo.List(ctx)
+}
+
+// GetServiceClientByID returns a service client by ID
+func (s *ServiceAuthService) GetServiceClientByID(ctx context.Context, id uuid.UUID) (*models.ServiceClient, error) {
+	client, err := s.serviceClientRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if client == nil {
+		return nil, ErrServiceClientNotFound
+	}
+	return client, nil
+}
+
+// UpdateServiceClient updates a service client
+func (s *ServiceAuthService) UpdateServiceClient(ctx context.Context, id uuid.UUID, name, description string, scopes []string) (*models.ServiceClient, error) {
+	client, err := s.serviceClientRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if client == nil {
+		return nil, ErrServiceClientNotFound
+	}
+
+	if name != "" {
+		client.Name = name
+	}
+	if description != "" {
+		client.Description = description
+	}
+	if len(scopes) > 0 {
+		client.Scopes = joinScopes(scopes)
+	}
+
+	if err := s.serviceClientRepo.Update(ctx, client); err != nil {
+		return nil, err
+	}
+
+	// Return without secret
+	client.ClientSecret = ""
+	return client, nil
+}
+
+// DeleteServiceClient deletes a service client
+func (s *ServiceAuthService) DeleteServiceClient(ctx context.Context, id uuid.UUID) error {
+	client, err := s.serviceClientRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if client == nil {
+		return ErrServiceClientNotFound
+	}
+
+	return s.serviceClientRepo.Delete(ctx, id)
+}
+
+// ToggleServiceClientStatus enables or disables a service client
+func (s *ServiceAuthService) ToggleServiceClientStatus(ctx context.Context, id uuid.UUID, isActive bool) error {
+	client, err := s.serviceClientRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if client == nil {
+		return ErrServiceClientNotFound
+	}
+
+	client.IsActive = isActive
+	return s.serviceClientRepo.Update(ctx, client)
+}
+
+// RotateServiceClientSecret generates a new secret for a service client
+func (s *ServiceAuthService) RotateServiceClientSecret(ctx context.Context, id uuid.UUID) (string, error) {
+	client, err := s.serviceClientRepo.GetByID(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if client == nil {
+		return "", ErrServiceClientNotFound
+	}
+
+	rawSecret, err := GenerateSecureToken(64)
+	if err != nil {
+		return "", err
+	}
+
+	hashedSecret, err := s.passwordService.HashPassword(rawSecret)
+	if err != nil {
+		return "", err
+	}
+
+	client.ClientSecret = hashedSecret
+	if err := s.serviceClientRepo.Update(ctx, client); err != nil {
+		return "", err
+	}
+
+	// Invalidate cached tokens
+	_ = s.serviceClientRepo.InvalidateServiceToken(ctx, client.ClientID)
+
+	s.logger.Info(logging.Postgres, logging.Update, "Service client secret rotated", map[logging.ExtraKey]interface{}{
+		"clientId": client.ClientID,
+		"name":     client.Name,
+	})
+
+	return rawSecret, nil
 }
