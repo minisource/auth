@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/minisource/auth/config"
@@ -112,6 +113,19 @@ func (s *UserService) ChangePassword(ctx context.Context, userID uuid.UUID, req 
 	}
 
 	user.PasswordHash = hash
+
+	// Remove hasDefaultPassword from metadata if present
+	var metadata map[string]interface{}
+	if user.Metadata == "" {
+		user.Metadata = "{}"
+	}
+	if err := json.Unmarshal([]byte(user.Metadata), &metadata); err == nil {
+		delete(metadata, "hasDefaultPassword")
+		if updatedMetadata, err := json.Marshal(metadata); err == nil {
+			user.Metadata = string(updatedMetadata)
+		}
+	}
+
 	return s.userRepo.Update(ctx, user)
 }
 
@@ -143,6 +157,19 @@ func (s *UserService) SetPassword(ctx context.Context, userID uuid.UUID, req *Se
 	}
 
 	user.PasswordHash = hash
+
+	// Remove hasDefaultPassword from metadata if present
+	var metadata map[string]interface{}
+	if user.Metadata == "" {
+		user.Metadata = "{}"
+	}
+	if err := json.Unmarshal([]byte(user.Metadata), &metadata); err == nil {
+		delete(metadata, "hasDefaultPassword")
+		if updatedMetadata, err := json.Marshal(metadata); err == nil {
+			user.Metadata = string(updatedMetadata)
+		}
+	}
+
 	return s.userRepo.Update(ctx, user)
 }
 

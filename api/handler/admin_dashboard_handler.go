@@ -21,6 +21,7 @@ type dashboardStats struct {
 	permissionsCount int64
 	tenantsCount     int64
 	svcClientsCount  int64
+	oauthProviders   int64
 	failedLogins24h  int64
 	activeSessions   int64
 	newUsersToday    int64
@@ -74,6 +75,7 @@ func (h *AdminDashboardHandler) GetDashboardOverview(c *fiber.Ctx) error {
 		},
 		"integrations": fiber.Map{
 			"serviceClients": stats.svcClientsCount,
+			"oauthProviders": stats.oauthProviders,
 		},
 		"security": fiber.Map{
 			"activeSessions":  stats.activeSessions,
@@ -109,6 +111,9 @@ func (h *AdminDashboardHandler) gatherStats(ctx context.Context) dashboardStats 
 
 	// Service clients
 	h.db.Model(&models.ServiceClient{}).Count(&result.svcClientsCount)
+
+	// OAuth providers
+	h.db.Model(&models.OAuthProvider{}).Where("is_enabled = true").Count(&result.oauthProviders)
 
 	// Failed logins in last 24h
 	since := time.Now().Add(-24 * time.Hour)

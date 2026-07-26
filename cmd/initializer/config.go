@@ -5,11 +5,10 @@ import (
 	"log"
 
 	"github.com/minisource/auth/config"
-	"github.com/minisource/auth/pkg/tracing"
 	"github.com/minisource/go-common/i18n"
 	"github.com/minisource/go-common/logging"
 	"github.com/minisource/go-common/metrics"
-	"go.opentelemetry.io/otel/sdk/trace"
+	commonTracing "github.com/minisource/go-common/tracing"
 )
 
 // InitConfig loads configuration from environment
@@ -46,14 +45,23 @@ func InitMetrics() {
 	metrics.InitMetrics()
 }
 
-// InitTracing initializes OpenTelemetry tracing with Jaeger
-func InitTracing(cfg *config.Config, logger logging.Logger) *trace.TracerProvider {
-	if !cfg.Tracing.Enabled || cfg.Tracing.JaegerURL == "" {
+// InitTracing initializes OpenTelemetry tracing with Tempo
+func InitTracing(cfg *config.Config, logger logging.Logger) *commonTracing.Tracer {
+	tracingCfg := commonTracing.LoadConfigFromEnv()
+
+	// Map old config if env vars not present
+	if !tracingCfg.Enabled && cfg.Tracing.Enabled {
+		tracingCfg.Enabled = cfg.Tracing.Enabled
+		tracingCfg.ServiceName = cfg.Tracing.ServiceName
+		tracingCfg.CollectorURL = cfg.Tracing.JaegerURL
+	}
+
+	if !tracingCfg.Enabled {
 		logger.Info(logging.General, logging.Startup, "Tracing disabled or not configured", nil)
 		return nil
 	}
 
-	tp, err := tracing.InitTracer(cfg.Tracing.ServiceName, cfg.Tracing.JaegerURL)
+	tp, err := commonTracing.InitTracer(context.Background(), tracingCfg)
 	if err != nil {
 		logger.Warn(logging.General, logging.Startup, "Failed to initialize tracing, continuing without it", map[logging.ExtraKey]interface{}{
 			"error": err.Error(),
@@ -61,20 +69,20 @@ func InitTracing(cfg *config.Config, logger logging.Logger) *trace.TracerProvide
 		return nil
 	}
 
-	logger.Info(logging.General, logging.Startup, "Tracing initialized with Jaeger", map[logging.ExtraKey]interface{}{
-		"jaegerURL": cfg.Tracing.JaegerURL,
+	logger.Info(logging.General, logging.Startup, "Tracing initialized with Tempo", map[logging.ExtraKey]interface{}{
+		"collectorURL": tracingCfg.CollectorURL,
 	})
 
 	return tp
 }
 
 // ShutdownTracing gracefully shuts down the tracer provider
-func ShutdownTracing(tp *trace.TracerProvider, logger logging.Logger) {
+func ShutdownTracing(tp *commonTracing.Tracer, logger logging.Logger) {
 	if tp == nil {
 		return
 	}
 
-	if err := tracing.Shutdown(context.Background(), tp); err != nil {
+	if err := tp.Shutdown(context.Background()); err != nil {
 		logger.Error(logging.General, logging.Startup, "Error shutting down tracer", map[logging.ExtraKey]interface{}{
 			"error": err.Error(),
 		})

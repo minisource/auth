@@ -169,6 +169,7 @@ type UserInfo struct {
 	EmailVerified bool     `json:"emailVerified"`
 	PhoneVerified bool     `json:"phoneVerified"`
 	Roles         []string `json:"roles"`
+	Metadata      string   `json:"metadata,omitempty"`
 }
 
 type ServiceAuthResponse struct {

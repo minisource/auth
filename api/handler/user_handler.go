@@ -12,20 +12,23 @@ import (
 
 // UserHandler handles user endpoints
 type UserHandler struct {
-	userService  *service.UserService
-	oauthService *service.OAuthService
-	logger       logging.Logger
+	userService   *service.UserService
+	oauthService  *service.OAuthService
+	tenantService service.TenantService
+	logger        logging.Logger
 }
 
 func NewUserHandler(
 	userService *service.UserService,
 	oauthService *service.OAuthService,
+	tenantService service.TenantService,
 	logger logging.Logger,
 ) *UserHandler {
 	return &UserHandler{
-		userService:  userService,
-		oauthService: oauthService,
-		logger:       logger,
+		userService:   userService,
+		oauthService:  oauthService,
+		tenantService: tenantService,
+		logger:        logger,
 	}
 }
 
@@ -227,6 +230,69 @@ func (h *UserHandler) GetLinkedAccounts(c *fiber.Ctx) error {
 	return c.JSON(result)
 }
 
+// GetMyTenants godoc
+// @Summary Get user's tenants
+// @Description Get all tenants that the current user is a member of
+// @Tags User
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {array} object
+// @Failure 401 {object} dto.ErrorResponse
+// @Router /users/me/tenants [get]
+func (h *UserHandler) GetMyTenants(c *fiber.Ctx) error {
+	userID := getUserIDFromContext(c)
+	if userID == uuid.Nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthorized",
+		})
+	}
+
+	memberships, err := h.tenantService.GetUserTenants(c.Context(), userID)
+	if err != nil {
+		return handleAuthError(c, err, h.logger)
+	}
+
+	// Build response with tenant info + user's role in each tenant
+	type TenantInfo struct {
+		ID          string `json:"id"`
+		Name        string `json:"name"`
+		Slug        string `json:"slug"`
+		DisplayName string `json:"displayName,omitempty"`
+		Logo        string `json:"logo,omitempty"`
+		Status      string `json:"status"`
+		Plan        string `json:"plan"`
+		IsDefault   bool   `json:"isDefault"`
+		Role        string `json:"role,omitempty"`
+	}
+
+	result := make([]TenantInfo, 0, len(memberships))
+	for _, m := range memberships {
+		if m.Tenant == nil {
+			continue
+		}
+		roleName := "member"
+		if m.Role != nil {
+			roleName = m.Role.Name
+		}
+		if m.IsOwner {
+			roleName = "owner"
+		}
+		result = append(result, TenantInfo{
+			ID:          m.Tenant.ID.String(),
+			Name:        m.Tenant.Name,
+			Slug:        m.Tenant.Slug,
+			DisplayName: m.Tenant.DisplayName,
+			Logo:        m.Tenant.Logo,
+			Status:      string(m.Tenant.Status),
+			Plan:        m.Tenant.Plan,
+			IsDefault:   m.IsDefault,
+			Role:        roleName,
+		})
+	}
+
+	return c.JSON(result)
+}
+
 // UnlinkGoogleAccount godoc
 // @Summary Unlink Google account
 // @Description Unlink Google OAuth account from current user
@@ -294,6 +360,7 @@ func toUserInfo(user interface{}) *dto.UserInfo {
 			EmailVerified: u.EmailVerified,
 			PhoneVerified: u.PhoneVerified,
 			Roles:         roles,
+			Metadata:      u.Metadata,
 		}
 	case interface {
 		GetID() string

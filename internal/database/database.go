@@ -109,6 +109,8 @@ func runMigrations(db *gorm.DB, runSeedData bool, logger logging.Logger) error {
 	// Auto-migrate all models (excluding OTPs and RefreshTokens which are now in Redis)
 	err := db.AutoMigrate(
 		&models.Tenant{},
+		&models.TenantMember{},
+		&models.TenantInvitation{},
 		&models.User{},
 		&models.Role{},
 		&models.Permission{},
@@ -118,6 +120,7 @@ func runMigrations(db *gorm.DB, runSeedData bool, logger logging.Logger) error {
 		// &models.RefreshToken{}, // Now in Redis
 		// &models.OTP{}, // Now in Redis
 		&models.OAuthAccount{},
+		&models.OAuthProvider{},
 		&models.LoginLog{},
 		&models.Setting{},
 		&models.ServiceClient{},
@@ -320,45 +323,57 @@ func seedDefaultData(db *gorm.DB, logger logging.Logger) {
 		}
 	}
 
-	// Seed sysadmin user if credentials are provided in .env
+	// Seed sysadmin user if email/credentials are provided or default
 	sysadminEmail := os.Getenv("SYSADMIN_EMAIL")
+	if sysadminEmail == "" {
+		sysadminEmail = "admin@minisource.com"
+	}
 	sysadminPassword := os.Getenv("SYSADMIN_PASSWORD")
-	if sysadminEmail != "" && sysadminPassword != "" {
-		var existingSysadmin models.User
-		if db.Where("email = ?", sysadminEmail).First(&existingSysadmin).Error != nil {
-			// Hash the password using bcrypt
-			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(sysadminPassword), bcrypt.DefaultCost)
-			if err != nil {
-				logger.Error(logging.Postgres, logging.Migration, "Failed to hash sysadmin password", map[logging.ExtraKey]interface{}{
-					"error": err.Error(),
+	isDefaultPassword := false
+	if sysadminPassword == "" {
+		sysadminPassword = "CHANGEME"
+		isDefaultPassword = true
+	}
+
+	var existingSysadmin models.User
+	if db.Where("email = ?", sysadminEmail).First(&existingSysadmin).Error != nil {
+		// Hash the password using bcrypt
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(sysadminPassword), bcrypt.DefaultCost)
+		if err != nil {
+			logger.Error(logging.Postgres, logging.Migration, "Failed to hash sysadmin password", map[logging.ExtraKey]interface{}{
+				"error": err.Error(),
+			})
+		} else {
+			metadataStr := "{}"
+			if isDefaultPassword {
+				metadataStr = `{"hasDefaultPassword": true}`
+			}
+			sysadmin := models.User{
+				Email:         sysadminEmail,
+				PasswordHash:  string(hashedPassword),
+				EmailVerified: true,
+				IsActive:      true,
+				IsSuperAdmin:  true,
+				FirstName:     "System",
+				LastName:      "Administrator",
+				Username:      "sysadmin",
+				Metadata:      metadataStr,
+			}
+
+			if err := db.Create(&sysadmin).Error; err != nil {
+				logger.Debug(logging.Postgres, logging.Migration, "Sysadmin user already exists", map[logging.ExtraKey]interface{}{
+					"email": sysadminEmail,
 				})
 			} else {
-				sysadmin := models.User{
-					Email:         sysadminEmail,
-					PasswordHash:  string(hashedPassword),
-					EmailVerified: true,
-					IsActive:      true,
-					IsSuperAdmin:  true,
-					FirstName:     "System",
-					LastName:      "Administrator",
-					Username:      "sysadmin",
+				// Assign super admin role
+				var superAdminRole models.Role
+				if db.Where("name = ?", models.RoleSuperAdmin).First(&superAdminRole).Error == nil {
+					db.Exec("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?) ON CONFLICT DO NOTHING", sysadmin.ID, superAdminRole.ID)
 				}
-
-				if err := db.Create(&sysadmin).Error; err != nil {
-					logger.Debug(logging.Postgres, logging.Migration, "Sysadmin user already exists", map[logging.ExtraKey]interface{}{
-						"email": sysadminEmail,
-					})
-				} else {
-					// Assign super admin role
-					var superAdminRole models.Role
-					if db.Where("name = ?", models.RoleSuperAdmin).First(&superAdminRole).Error == nil {
-						db.Exec("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?) ON CONFLICT DO NOTHING", sysadmin.ID, superAdminRole.ID)
-					}
-					logger.Info(logging.Postgres, logging.Migration, "Created sysadmin user", map[logging.ExtraKey]interface{}{
-						"email": sysadminEmail,
-						"role":  models.RoleSuperAdmin,
-					})
-				}
+				logger.Info(logging.Postgres, logging.Migration, "Created sysadmin user", map[logging.ExtraKey]interface{}{
+					"email": sysadminEmail,
+					"role":  models.RoleSuperAdmin,
+				})
 			}
 		}
 	}

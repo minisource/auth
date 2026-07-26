@@ -57,6 +57,17 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 	// Global middleware
 	app.Use(recover.New())
 
+	// CORS — Allow all origins, headers, methods, and credentials
+	app.Use(cors.New(cors.Config{
+		AllowOriginsFunc: func(origin string) bool {
+			return true
+		},
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders:     "*",
+		ExposeHeaders:    "*",
+		AllowCredentials: true,
+	}))
+
 	// Security middleware
 	app.Use(commonMiddleware.SecurityHeaders(commonMiddleware.DefaultSecurityHeadersConfig()))
 	app.Use(commonMiddleware.RequestValidation(commonMiddleware.DefaultRequestValidationConfig()))
@@ -67,18 +78,6 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services) *fi
 	}))
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${status} - ${method} ${path} ${latency}\n",
-	}))
-
-	// CORS — Fiber built-in handles origin matching
-	corsOrigins := cfg.Cors.AllowedOrigins
-	if corsOrigins == "" {
-		corsOrigins = "*"
-	}
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     corsOrigins,
-		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-Tenant-ID,X-Language,Accept-Language",
-		AllowCredentials: corsOrigins != "*",
 	}))
 
 	// Tenant middleware - extract and validate tenant context
@@ -191,6 +190,7 @@ func registerAPIRoutes(prefix string, app *fiber.App, handlers *Handlers, servic
 		users.Put("/me/password", handlers.User.ChangePassword)
 		users.Post("/me/password/set", handlers.User.SetPassword)
 		users.Get("/me/sessions", handlers.User.GetSessions)
+		users.Get("/me/tenants", handlers.User.GetMyTenants)
 		users.Get("/me/linked-accounts", handlers.User.GetLinkedAccounts)
 		users.Delete("/me/linked-accounts/google", handlers.User.UnlinkGoogleAccount)
 	}

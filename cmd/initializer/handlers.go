@@ -18,7 +18,7 @@ func InitHandlers(
 ) *router.Handlers {
 	return &router.Handlers{
 		Auth:               handler.NewAuthHandler(services.Auth, services.OAuth, services.Token, services.ServiceAuth, services.KeyProvider, logger),
-		User:               handler.NewUserHandler(services.User, services.OAuth, logger),
+		User:               handler.NewUserHandler(services.User, services.OAuth, services.Tenant, logger),
 		AdminUser:          handler.NewAdminUserHandler(services.User, logger),
 		Role:               handler.NewRoleHandler(services.Role, logger),
 		ServiceAuth:        handler.NewServiceAuthHandler(services.ServiceAuth, services.Token, logger),

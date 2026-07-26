@@ -3,16 +3,32 @@
 
 services:
   auth:
+    build:
+      context: ../..
+      dockerfile: auth/backend/Dockerfile
     image: minisource/auth:${TAG:-latest}
     container_name: ${COMPOSE_PROJECT_NAME:-auth}-service
     env_file:
       - .env
     environment:
       # Override for container networking
-      POSTGRES_HOST: auth-postgres
+      DB_HOST: auth-postgres
+      DB_PORT: "5432"
+      DB_USER: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_NAME: ${POSTGRES_DB:-auth_db}
       REDIS_HOST: auth-redis
-    expose:
-      - "${SERVER_PORT:-9001}"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-secret}
+      SYSADMIN_EMAIL: "admin@minisource.com"
+      SYSADMIN_PASSWORD: "CHANGEME"
+      LOG_CONSOLE_ONLY: "true"
+      TRACING_ENABLED: "true"
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: auth-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://minisource-otel-collector:4317
+    ports:
+      - "9001:9001"
     depends_on:
       auth-postgres:
         condition: service_healthy
@@ -31,7 +47,7 @@ services:
           cpus: '0.25'
           memory: 128M
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${SERVER_PORT:-9001}/health"]
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9001 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -46,6 +62,7 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      - /app/logs
 
   auth-postgres:
     image: postgres:16-alpine
@@ -53,8 +70,8 @@ services:
     env_file:
       - .env
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-auth_db}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.utf8"
     # No ports exposed - internal network only
@@ -75,7 +92,7 @@ services:
           cpus: '0.5'
           memory: 256M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-auth_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-auth_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -96,7 +113,7 @@ services:
       --appendonly yes
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru
-      --requirepass ${REDIS_PASSWORD}
+      --requirepass ${REDIS_PASSWORD:-secret}
     # No ports exposed - internal network only
     expose:
       - "6379"
@@ -114,7 +131,7 @@ services:
           cpus: '0.25'
           memory: 128M
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-secret}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
