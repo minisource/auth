@@ -11,8 +11,6 @@ import (
 
 	"github.com/minisource/auth/api/router"
 	"github.com/minisource/auth/cmd/initializer"
-	_ "github.com/minisource/auth/docs" // Import swagger docs
-	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/logging"
 )
 
@@ -66,9 +64,9 @@ func main() {
 	// Initialize services
 	services := initializer.InitServices(cfg, repos, rdb, db, logger)
 
-	// Close notifier client if it's a gRPC client
-	if grpcClient, ok := services.Notifier.(*service.GRPCNotifierClient); ok {
-		defer grpcClient.Close()
+	// Close notifier client
+	if services.Notifier != nil {
+		defer services.Notifier.Close()
 	}
 
 	// Initialize health checkers

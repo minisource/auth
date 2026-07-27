@@ -125,6 +125,7 @@ type NotifierConfig struct {
 	HTTPURL      string
 	ClientID     string // Service client ID for auth (if required by notifier)
 	ClientSecret string // Service client secret for auth (if required by notifier)
+	AuthURL      string // Optional override URL for token auth requests
 }
 
 type GRPCConfig struct {
@@ -227,6 +228,7 @@ func GetConfig() *Config {
 				HTTPURL:      getEnv("NOTIFIER_HTTP_URL", "http://localhost:9002"),
 				ClientID:     getEnv("NOTIFIER_CLIENT_ID", "auth-service"),
 				ClientSecret: getEnv("NOTIFIER_CLIENT_SECRET", ""),
+				AuthURL:      getEnv("NOTIFIER_AUTH_URL", ""),
 			},
 			GRPC: GRPCConfig{
 				Enabled: getEnvAsBool("GRPC_ENABLED", true),

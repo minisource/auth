@@ -13,6 +13,7 @@ import (
 	"github.com/minisource/auth/internal/repository"
 	"github.com/minisource/go-common/logging"
 	"github.com/minisource/go-common/sensitive"
+	"github.com/minisource/go-sdk/notifier"
 )
 
 // OTPService handles OTP operations
@@ -24,18 +25,12 @@ type OTPService struct {
 	settingsService *SettingsService
 }
 
-// SMSRequest holds parameters for template-based SMS
-type SMSRequest struct {
-	Phone    string
-	Template string
-	Data     map[string]string
-}
-
 // NotifierClient interface for sending notifications
 type NotifierClient interface {
-	SendSMS(ctx context.Context, phone, message string) error
-	SendSMSWithData(ctx context.Context, req *SMSRequest) error
-	SendEmail(ctx context.Context, email, subject, body string) error
+	SendSMS(ctx context.Context, userID, phone, body string) (string, error)
+	SendSMSWithData(ctx context.Context, req *notifier.SMSRequest) (string, error)
+	SendEmail(ctx context.Context, userID, email, subject, body string) (string, error)
+	Close() error
 }
 
 func NewOTPService(cfg *config.OTPConfig, otpRepo repository.OTPRepository, logger logging.Logger, notifier NotifierClient, settingsService *SettingsService) *OTPService {
@@ -145,7 +140,8 @@ func (s *OTPService) sendOTP(ctx context.Context, target, code, otpType string) 
 		})
 		subject := s.getEmailSubject(otpType)
 		message := s.formatOTPMessage(code, otpType)
-		return s.notifierClient.SendEmail(ctx, target, subject, message)
+		_, err := s.notifierClient.SendEmail(ctx, "", target, subject, message)
+		return err
 
 	case models.OTPTypePhoneVerification, models.OTPTypeLogin:
 		s.logger.Info(logging.General, logging.ExternalService, "Sending OTP via SMS", sensitive.LogMap(map[logging.ExtraKey]interface{}{
@@ -161,7 +157,7 @@ func (s *OTPService) sendOTP(ctx context.Context, target, code, otpType string) 
 			"template": "verify",
 			"data":     map[string]string{"code": code},
 		}, "data", "code"))
-		err := s.notifierClient.SendSMSWithData(ctx, &SMSRequest{
+		_, err := s.notifierClient.SendSMSWithData(ctx, &notifier.SMSRequest{
 			Phone:    target,
 			Template: "verify",
 			Data:     map[string]string{"code": code},
@@ -183,17 +179,19 @@ func (s *OTPService) sendOTP(ctx context.Context, target, code, otpType string) 
 				"target": target,
 			})
 			message := s.formatOTPMessage(code, otpType)
-			return s.notifierClient.SendEmail(ctx, target, "Verification Code", message)
+			_, err := s.notifierClient.SendEmail(ctx, "", target, "Verification Code", message)
+			return err
 		}
 		s.logger.Info(logging.General, logging.ExternalService, "Detected phone target, sending via SMS", map[logging.ExtraKey]interface{}{
 			"target": target,
 		})
 		// Use template-based SMS for OTP
-		return s.notifierClient.SendSMSWithData(ctx, &SMSRequest{
+		_, err := s.notifierClient.SendSMSWithData(ctx, &notifier.SMSRequest{
 			Phone:    target,
 			Template: "verify",
 			Data:     map[string]string{"code": code},
 		})
+		return err
 	}
 }
 

@@ -1,11 +1,17 @@
 package initializer
 
 import (
+	"context"
+	"fmt"
+	"time"
+
 	"github.com/minisource/auth/config"
 	"github.com/minisource/auth/internal/repository"
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/audit"
 	"github.com/minisource/go-common/logging"
+	"github.com/minisource/go-sdk/auth"
+	"github.com/minisource/go-sdk/notifier"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -135,14 +141,35 @@ func InitServices(cfg *config.Config, repos *Repositories, rdb *redis.Client, db
 	}
 }
 
-// initNotifierClient creates notifier client with fallback to noop client
+// initNotifierClient creates notifier client with fallback to noop client using go-sdk
 func initNotifierClient(cfg *config.Config, logger logging.Logger) service.NotifierClient {
 	if !cfg.Notifier.Enabled {
 		logger.Info(logging.General, logging.Startup, "Notifier service disabled in config", nil)
 		return service.NewNoopNotifierClient(logger)
 	}
 
-	grpcNotifier, err := service.NewGRPCNotifierClient(&cfg.Notifier, cfg, logger)
+	var authClient *auth.Client
+	if cfg.Notifier.ClientID != "" && cfg.Notifier.ClientSecret != "" {
+		authBaseURL := cfg.Notifier.AuthURL
+		if authBaseURL == "" {
+			authBaseURL = fmt.Sprintf("http://localhost:%s", cfg.Server.Port)
+		}
+		authClient = auth.NewClient(auth.ClientConfig{
+			BaseURL:      authBaseURL,
+			ClientID:     cfg.Notifier.ClientID,
+			ClientSecret: cfg.Notifier.ClientSecret,
+			Timeout:      10 * time.Second,
+			AutoRefresh:  true,
+			Logger:       logger,
+		})
+	}
+
+	sdkClient, err := notifier.NewClient(context.Background(), notifier.Config{
+		Address:    cfg.Notifier.GRPCAddress,
+		Timeout:    30 * time.Second,
+		AuthClient: authClient,
+		Logger:     logger,
+	})
 	if err != nil {
 		logger.Warn(logging.General, logging.Startup, "Failed to connect to notifier service, using noop client", map[logging.ExtraKey]interface{}{
 			"error": err.Error(),
@@ -150,9 +177,5 @@ func initNotifierClient(cfg *config.Config, logger logging.Logger) service.Notif
 		return service.NewNoopNotifierClient(logger)
 	}
 
-	if grpcNotifier != nil {
-		return grpcNotifier
-	}
-
-	return service.NewNoopNotifierClient(logger)
+	return sdkClient
 }
