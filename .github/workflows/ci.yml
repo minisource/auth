@@ -94,7 +94,7 @@ jobs:
     uses: minisource/.github/.github/workflows/build-and-push.yml@main
     with:
       image-name: minisource/auth-frontend
-      dockerfile-path: Dockerfile
+      dockerfile-path: front/Dockerfile
       build-context: front
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
