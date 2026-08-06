@@ -1,243 +1,117 @@
-# Auth Microservice
+# Auth Microservice & Dashboard
 
-A comprehensive authentication and authorization microservice built with Go and the Fiber framework. It provides user management, JWT authentication, OAuth2 support, OTP verification, and service-to-service authentication.
+A comprehensive authentication and authorization microservice built with Go (Fiber) and Next.js Admin Dashboard. Provides user management, JWT authentication, OAuth2 support, OTP verification, multi-tenant RBAC, and service-to-service authentication.
+
+## Docker Images
+
+Published to Docker Hub:
+- **Backend**: `minisource/auth-backend:v1.0.1`
+- **Frontend**: `minisource/auth-frontend:v1.0.1`
+
+```bash
+docker pull minisource/auth-backend:v1.0.1
+docker pull minisource/auth-frontend:v1.0.1
+```
 
 ## Features
 
-- **User Authentication**
-  - Email/password login
-  - Phone OTP login
-  - Google OAuth2 login
-  - JWT token management (access + refresh tokens)
-  - Password reset with OTP
+- **User Authentication & Security**
+  - Email/password login & Phone OTP login
+  - Google OAuth2 & OpenID Connect
+  - JWT Token lifecycle management (Access + Refresh tokens with rotation)
+  - Password reset flows with secure OTP
+  - Security headers, rate limiting, and account lockout
 
-- **User Management**
-  - User registration
-  - Profile management
-  - Email/phone verification
-  - Session management
+- **User & Multi-Tenant Management**
+  - User registration & self-service profile management
+  - Email & phone verification
+  - Session tracking & active session invalidation
+  - Multi-tenant tenant separation and RBAC (Role-Based Access Control)
 
-- **Authorization**
-  - Role-based access control (RBAC)
-  - Permission management
-  - Multi-tenant support
+- **Service-to-Service Authentication**
+  - OAuth2 Client Credentials flow
+  - Service client management & secret rotation
+  - Scope-based authorization & token validation
 
-- **Service-to-Service Auth**
-  - OAuth2 client credentials flow
-  - Service token validation
-  - Scope-based authorization
-
-- **Security Features**
-  - Rate limiting
-  - Account lockout after failed attempts
-  - Login attempt logging
-  - Secure password hashing (bcrypt)
+- **Next.js Admin Dashboard (`front/`)**
+  - Interactive management UI for users, sessions, tenants, and OAuth providers
+  - Service Client API lab & client creation wizards
+  - Login audit logs and security analytics
 
 ## Tech Stack
 
-- **Language**: Go 1.24
-- **Framework**: Fiber v2
-- **Database**: PostgreSQL
-- **Cache**: Redis
-- **Auth**: JWT, OAuth2
-- **gRPC**: Service-to-service communication
+- **Backend**: Go 1.24, Fiber v2, PostgreSQL 15, Redis 7, gRPC
+- **Frontend**: Next.js 14/15, React 19, TypeScript, TailwindCSS, `@minisource/ui`
+- **CI/CD**: GitHub Actions, Docker Hub
+
+## Repository Structure
+
+```
+auth/
+├── backend/                  # Go HTTP API & gRPC Server
+│   ├── cmd/
+│   ├── internal/
+│   └── Dockerfile
+├── front/                    # Next.js Admin Panel
+│   ├── src/
+│   └── Dockerfile
+├── docker-compose.prod.yml   # Production Compose setup
+├── docker-compose.dev.yml    # Development Compose setup
+└── .github/workflows/        # CI/CD Workflows
+```
 
 ## Quick Start
 
-### Prerequisites
+### Running with Docker Compose
 
-- Go 1.24+
-- PostgreSQL 15+
-- Redis 7+
-
-### Installation
-
-1. Clone the repository:
 ```bash
-cd auth
+# Development stack (Postgres + Redis + Local build)
+docker compose -f docker-compose.dev.yml up -d
+
+# Production stack (Pulling from Docker Hub)
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-2. Copy the environment file:
+### Local Development
+
+#### Backend (Go)
 ```bash
+cd backend
 cp .env.example .env
+go run ./cmd/server
 ```
 
-3. Configure the `.env` file with your settings.
-
-4. Run the service:
+#### Frontend (Next.js)
 ```bash
-make run
+cd front
+npm install --legacy-peer-deps
+npm run dev
 ```
 
-Or with Docker:
-```bash
-docker-compose up -d
-```
+## Environment Variables
 
-## Configuration
-
-### Environment Variables
+### Backend Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SERVER_PORT` | HTTP server port | `9001` |
-| `SERVER_MODE` | Server mode (development/production) | `development` |
+| `SERVER_MODE` | Server mode (`development`/`production`) | `development` |
 | `DB_HOST` | PostgreSQL host | `localhost` |
 | `DB_PORT` | PostgreSQL port | `5432` |
-| `DB_USER` | Database user | `postgres` |
-| `DB_PASSWORD` | Database password | - |
 | `DB_NAME` | Database name | `auth_db` |
 | `REDIS_HOST` | Redis host | `localhost` |
 | `REDIS_PORT` | Redis port | `6379` |
 | `JWT_SECRET` | JWT signing secret | - |
-| `JWT_ACCESS_EXPIRY` | Access token expiry | `15m` |
-| `JWT_REFRESH_EXPIRY` | Refresh token expiry | `168h` |
 
-See `.env.example` for all configuration options.
+### Frontend Variables
 
-## API Endpoints
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NEXT_PUBLIC_API_URL` | Auth Backend API URL | `http://localhost:9001` |
 
-### Authentication
+## CI/CD & Publishing
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/auth/register` | Register new user |
-| POST | `/api/v1/auth/login` | Login with email/password |
-| POST | `/api/v1/auth/login/otp/send` | Send OTP for login |
-| POST | `/api/v1/auth/login/otp/verify` | Verify OTP and login |
-| POST | `/api/v1/auth/refresh` | Refresh access token |
-| POST | `/api/v1/auth/logout` | Logout user |
-| GET | `/api/v1/auth/google/login` | Initiate Google OAuth |
-| GET | `/api/v1/auth/google/callback` | Google OAuth callback |
-
-### User Management
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/users/me` | Get current user profile |
-| PUT | `/api/v1/users/me` | Update current user profile |
-| PUT | `/api/v1/users/me/password` | Change password |
-| POST | `/api/v1/users/password/forgot` | Request password reset |
-| POST | `/api/v1/users/password/reset` | Reset password with OTP |
-
-### Service Authentication
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/service/token` | Get service access token |
-| POST | `/api/v1/service/validate` | Validate service token |
-
-### Admin
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/admin/users` | List all users |
-| GET | `/api/v1/admin/users/:id` | Get user by ID |
-| PUT | `/api/v1/admin/users/:id` | Update user |
-| DELETE | `/api/v1/admin/users/:id` | Delete user |
-| GET | `/api/v1/admin/roles` | List all roles |
-| POST | `/api/v1/admin/roles` | Create role |
-| PUT | `/api/v1/admin/roles/:id` | Update role |
-| DELETE | `/api/v1/admin/roles/:id` | Delete role |
-
-## gRPC API
-
-The auth service also exposes a gRPC API on port 9004 for service-to-service communication:
-
-- `ValidateToken(token)` - Validate JWT token
-- `ValidateServiceToken(token)` - Validate service token
-- `GetUserInfo(userId)` - Get user information
-
-## Project Structure
-
-```
-auth/
-├── api/              # API route definitions
-├── cmd/              # Application entry points
-├── config/           # Configuration management
-├── docs/             # Swagger documentation
-├── internal/
-│   ├── database/     # Database connection and migrations
-│   ├── handlers/     # HTTP handlers
-│   ├── models/       # Database models
-│   ├── repository/   # Data access layer
-│   ├── services/     # Business logic
-│   └── grpc/         # gRPC server
-├── migrations/       # Database migrations
-├── pkg/              # Shared packages
-└── scripts/          # Utility scripts
-```
-
-## Service OAuth Clients
-
-The auth service manages OAuth clients for service-to-service authentication. Each microservice has credentials configured in `.env`:
-
-| Service | Client ID | Scopes |
-|---------|-----------|--------|
-| auth-service | `auth-service` | `notifications:send,notifications:read` |
-| gateway-service | `gateway-service` | `tokens:validate,users:read` |
-| notifier-service | `notifier-service` | `tokens:validate` |
-| log-service | `log-service` | `tokens:validate,logs:write,logs:read` |
-| scheduler-service | `scheduler-service` | `tokens:validate,notifications:send,scheduler:admin` |
-| storage-service | `storage-service` | `tokens:validate,storage:*` |
-| comment-service | `comment-service` | `tokens:validate,notifications:send,comments:*` |
-| feedback-service | `feedback-service` | `tokens:validate,notifications:send,storage:*,feedback:*` |
-| ticket-service | `ticket-service` | `tokens:validate,notifications:send,storage:*,tickets:*` |
-| payment-service | `payment-service` | `tokens:validate,notifications:send,payments:*,subscriptions:*` |
-
-## Development
-
-### Run Tests
-
-```bash
-make test
-```
-
-### Generate Swagger Docs
-
-```bash
-make swagger
-```
-
-### Build
-
-```bash
-make build
-```
-
-## Docker
-
-### Docker Hub
-
-Images are published to [Docker Hub](https://hub.docker.com/orgs/minisource/repositories) on every successful build to `main`.
-
-| Image | Tags |
-|-------|------|
-| `minisource/auth` | `latest`, commit SHA |
-
-```bash
-# Production (pre-built image)
-export TAG=latest
-docker compose -f docker-compose.prod.yml up -d
-
-# Local development (build from source)
-docker build -t minisource/auth .
-docker compose -f docker-compose.dev.yml up -d
-```
-
-### GitHub Actions secrets
-
-- `DOCKERHUB_USERNAME` — Docker Hub username
-- `DOCKERHUB_TOKEN` — Docker Hub access token
-
-## Health Checks
-
-| Endpoint | Description |
-|----------|-------------|
-| `/health` | Basic health check |
-| `/ready` | Readiness probe |
-| `/live` | Liveness probe |
-
-## License
-
-MIT License - see LICENSE file for details.
+Automated by GitHub Actions (`.github/workflows/ci.yml`):
+- **Backend CI**: Go tests & `go vet`
+- **Frontend CI**: ESLint, TypeScript check (`tsc --noEmit`), and Vitest
+- **Docker Push**: Automatically builds and publishes `minisource/auth-backend` & `minisource/auth-frontend` to Docker Hub upon tag pushes (`v*`).
