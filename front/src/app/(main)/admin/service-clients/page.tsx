@@ -4,11 +4,10 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, Input, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, PageHeader } from '@minisource/ui';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, PageHeader } from '@minisource/ui';
 import { CreateServiceClientDialog } from '@/features/service-clients';
 import {
   useServiceClients,
-  useCreateServiceClient,
   useUpdateServiceClient,
   useDeleteServiceClient,
   useToggleServiceClientStatus,
@@ -16,7 +15,6 @@ import {
 } from '@/hooks';
 import {
   Server,
-  Plus,
   Loader2,
   Copy,
   CheckCircle2,
@@ -40,7 +38,6 @@ const clientSchema = z.object({
 type ClientFormData = z.infer<typeof clientSchema>;
 
 export default function AdminServiceClientsPage() {
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<string | null>(null);
   const [createdSecret, setCreatedSecret] = useState<{
     clientId: string;
@@ -54,38 +51,17 @@ export default function AdminServiceClientsPage() {
 
   const { data: clients, isLoading, error } = useServiceClients();
 
-  const { mutate: createClient, isPending: isCreating } = useCreateServiceClient();
+
   const { mutate: updateClient, isPending: isUpdating } = useUpdateServiceClient();
   const { mutate: deleteClient } = useDeleteServiceClient();
   const { mutate: toggleStatus } = useToggleServiceClientStatus();
   const { mutate: rotateSecret, isPending: isRotating } = useRotateServiceClientSecret();
 
-  const createForm = useForm<ClientFormData>({ resolver: zodResolver(clientSchema) });
   const editForm = useForm<ClientFormData>({ resolver: zodResolver(clientSchema) });
 
   const editingClientData = editingClient
     ? Array.isArray(clients) ? clients.find((c) => c.id === editingClient || c.clientId === editingClient) : null
     : null;
-
-  const onCreateSubmit = (data: ClientFormData) => {
-    const scopes = data.scopes
-      ? data.scopes.split(',').map((s) => s.trim()).filter(Boolean)
-      : undefined;
-    createClient(
-      { name: data.name, description: data.description, scopes },
-      {
-        onSuccess: (result: any) => {
-          setCreatedSecret({
-            clientId: result.clientId || result.id,
-            clientSecret: result.clientSecret || '',
-            name: result.name,
-          });
-          setIsCreateOpen(false);
-          createForm.reset();
-        },
-      }
-    );
-  };
 
   const onEditSubmit = (data: ClientFormData) => {
     if (!editingClient) return;

@@ -15,7 +15,6 @@ import {
 } from '@minisource/ui';
 import {
   Wrench,
-  Play,
   RotateCcw,
   CheckCircle,
   XCircle,
@@ -31,7 +30,6 @@ import {
   Eye,
   EyeOff,
   Activity,
-  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -739,7 +737,7 @@ export default function ApiLabPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm">
-                  This validates that the user's browser credentials can securely retrieve profile metadata `/users/me`.
+                  This validates that the user&apos;s browser credentials can securely retrieve profile metadata `/users/me`.
                 </p>
                 <Button onClick={handleFetchSession} disabled={executing} className="w-full">
                   Fetch Profile Details

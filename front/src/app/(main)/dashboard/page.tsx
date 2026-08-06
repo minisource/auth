@@ -93,7 +93,7 @@ export default function DashboardPage() {
       try {
         const meta = JSON.parse(metaStr);
         hasDefault = !!meta.hasDefaultPassword;
-      } catch (e) {
+      } catch {
         /* ignore */
       }
     }

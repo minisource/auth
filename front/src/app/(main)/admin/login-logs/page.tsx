@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, PageHeader } from '@minisource/ui';
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, PageHeader } from '@minisource/ui';
 import {
   Activity,
   Search,
@@ -35,19 +35,6 @@ export default function AdminLoginLogsPage() {
   });
 
   const logList = Array.isArray(logs) ? logs : [];
-
-  const actionColors: Record<string, string> = {
-    login: 'default',
-    login_failed: 'destructive',
-    logout: 'secondary',
-    password_reset: 'default',
-    password_change: 'default',
-    token_refresh: 'secondary',
-    otp_verify: 'default',
-    oauth_login: 'default',
-    account_locked: 'destructive',
-    account_unlocked: 'default',
-  };
 
   const formatAction = (action: string) => {
     return action.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
