@@ -13,7 +13,7 @@ jobs:
     name: Docker Publish Backend
     uses: minisource/.github/.github/workflows/docker-release.yml@main
     with:
-      image-name: ${{ secrets.DOCKERHUB_USERNAME }}/auth-backend
+      image-name: minisource/auth-backend
       dockerfile-path: backend/Dockerfile
       build-context: .
     secrets: inherit
@@ -22,7 +22,7 @@ jobs:
     name: Docker Publish Frontend
     uses: minisource/.github/.github/workflows/docker-release.yml@main
     with:
-      image-name: ${{ secrets.DOCKERHUB_USERNAME }}/auth-frontend
+      image-name: minisource/auth-frontend
       dockerfile-path: front/Dockerfile
       build-context: .
     secrets: inherit

@@ -80,7 +80,7 @@ jobs:
     needs: backend-validate
     uses: minisource/.github/.github/workflows/build-and-push.yml@main
     with:
-      image-name: ${{ secrets.DOCKERHUB_USERNAME }}/auth-backend
+      image-name: minisource/auth-backend
       dockerfile-path: backend/Dockerfile
       build-context: .
     secrets: inherit
@@ -90,7 +90,7 @@ jobs:
     needs: frontend-validate
     uses: minisource/.github/.github/workflows/build-and-push.yml@main
     with:
-      image-name: ${{ secrets.DOCKERHUB_USERNAME }}/auth-frontend
+      image-name: minisource/auth-frontend
       dockerfile-path: front/Dockerfile
       build-context: .
     secrets: inherit
