@@ -1,0 +1,28 @@
+name: Docker Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  docker-backend:
+    name: Docker Publish Backend
+    uses: minisource/.github/.github/workflows/docker-release.yml@main
+    with:
+      image-name: ${{ secrets.DOCKERHUB_USERNAME }}/auth-backend
+      dockerfile-path: backend/Dockerfile
+      build-context: .
+    secrets: inherit
+
+  docker-frontend:
+    name: Docker Publish Frontend
+    uses: minisource/.github/.github/workflows/docker-release.yml@main
+    with:
+      image-name: ${{ secrets.DOCKERHUB_USERNAME }}/auth-frontend
+      dockerfile-path: front/Dockerfile
+      build-context: .
+    secrets: inherit
