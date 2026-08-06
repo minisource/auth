@@ -301,9 +301,9 @@ export default function AdminServiceClientsPage() {
                   <TableCell colSpan={6} className="py-12 text-center">
                     <Server className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">No service clients found</p>
-                    <Button variant="link" onClick={() => setIsCreateOpen(true)}>
-                      Create your first client
-                    </Button>
+                    <CreateServiceClientDialog
+                      onSuccess={(secretData) => setCreatedSecret(secretData)}
+                    />
                   </TableCell>
                 </TableRow>
               )}
