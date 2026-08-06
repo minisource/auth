@@ -1,0 +1,20 @@
+# Auth Service - Default Docker Compose (Production)
+# This is an alias to docker-compose.prod.yml
+# For development, use: docker compose -f docker-compose.dev.yml up -d
+
+# Usage:
+#   Development (infrastructure only):
+#     cp .env.dev .env
+#     docker compose -f docker-compose.dev.yml up -d
+#     go run ./cmd/main.go  # or: air (for hot reload)
+#
+#   Production:
+#     cp .env.prod .env
+#     # Edit .env with secure values
+#     docker compose -f docker-compose.prod.yml up -d
+#
+#   With optional dev tools:
+#     docker compose -f docker-compose.dev.yml --profile tools up -d
+
+include:
+  - docker-compose.prod.yml

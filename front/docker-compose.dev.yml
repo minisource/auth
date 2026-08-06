@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: minisource-auth-frontend-dev
+    ports:
+      - "3003:3003"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_APP_NAME=Minisource Auth (Dev)
+      - NEXT_PUBLIC_APP_URL=http://localhost:3003
+      - NEXT_PUBLIC_API_URL=http://host.docker.internal:9001/api/v1
+      - WATCHPACK_POLLING=true
+    networks:
+      - minisource-dev
+
+networks:
+  minisource-dev:
+    driver: bridge

@@ -1,0 +1,76 @@
+# Docker ignore file for Auth Service
+# Reduces build context size and improves build speed
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Documentation
+*.md
+!README.md
+docs/
+LICENSE
+
+# Docker files (not needed in build context)
+docker-compose*.yml
+.dockerignore
+Dockerfile.dev
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Test files
+*_test.go
+tests/
+testdata/
+coverage.out
+coverage.html
+*.test
+
+# Build artifacts
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go specific
+vendor/
+go.work
+go.work.sum
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+Makefile
+
+# Misc
+*.bak
+*.old
+.air.toml

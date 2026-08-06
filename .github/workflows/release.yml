@@ -16,7 +16,9 @@ jobs:
       image-name: minisource/auth-backend
       dockerfile-path: backend/Dockerfile
       build-context: .
-    secrets: inherit
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   docker-frontend:
     name: Docker Publish Frontend
@@ -25,4 +27,6 @@ jobs:
       image-name: minisource/auth-frontend
       dockerfile-path: front/Dockerfile
       build-context: .
-    secrets: inherit
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
