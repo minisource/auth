@@ -28,6 +28,7 @@ import {
 import { HeaderControls } from '@/components/layout/header-controls';
 import { TenantSelector } from '@/components/layout/tenant-selector';
 import { AuthGuard } from '@/components/shared/AuthGuard';
+import { RealtimeStatusIndicator } from '@/features/realtime/realtime-status-indicator';
 import {
   LayoutDashboard,
   Users,
@@ -248,6 +249,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                       timezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
                     />
                   </div>
+                  <RealtimeStatusIndicator />
                   <HeaderControls />
                   <UserMenu
                     name={user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : undefined}

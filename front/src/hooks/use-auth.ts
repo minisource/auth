@@ -5,7 +5,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@minisource/ui';
 import { useRouter } from 'next/navigation';
 import { authApi, userApi, adminApi, accountApi } from '@/api';
 import { useAuthStore } from '@/stores';

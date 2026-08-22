@@ -129,6 +129,20 @@ func ValidateEmail(email string) bool {
 	return emailRegex.MatchString(email)
 }
 
+// ValidateUsername validates username format: 3-30 chars,
+// letters/digits, dot, underscore or hyphen (no spaces, no leading/trailing).
+func ValidateUsername(username string) bool {
+	u := strings.TrimSpace(username)
+	if len(u) < 3 || len(u) > 30 {
+		return false
+	}
+	if u != username {
+		return false
+	}
+	usernameRegex := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	return usernameRegex.MatchString(u)
+}
+
 // ValidatePhone validates Iranian mobile phone number format
 func ValidatePhone(phone string) bool {
 	return common.ValidateIranMobileNumber(phone)

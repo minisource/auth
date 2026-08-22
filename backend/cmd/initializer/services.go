@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/minisource/auth/config"
+	"github.com/minisource/auth/internal/events"
 	"github.com/minisource/auth/internal/repository"
 	"github.com/minisource/auth/internal/retention"
 	"github.com/minisource/auth/internal/service"
@@ -46,6 +47,9 @@ type Services struct {
 	RetentionPolicyRepo retention.PolicyRepository
 	RetentionRunRepo    retention.RunRepository
 	RetentionScheduler  *retention.Scheduler
+
+	// Realtime
+	Events *events.Bus
 }
 
 // InitServices creates all service instances
@@ -63,8 +67,15 @@ func InitServices(cfg *config.Config, repos *Repositories, rdb *redis.Client, db
 	passwordService := service.NewPasswordService(&cfg.Password)
 	settingsService := service.NewSettingsService(cfg, repos.Setting, rdb, logger)
 
-	// Initialize audit logger
-	auditLogger := audit.NewService(db)
+	// Initialize the realtime admin event bus (SSE /v1/admin/events). The bus
+	// relays events across instances through Redis Pub/Sub so every admin
+	// dashboard sees events no matter which instance produced them.
+	logger.Info(logging.General, logging.Startup, "Initializing realtime event bus", nil)
+	eventBus := events.NewRelayedBus(logger, rdb)
+
+	// Initialize audit logger — wrapped so every persisted audit entry also
+	// pushes a sanitized audit.entry_created event to admin dashboards.
+	auditLogger := events.NewPublishingAuditLogger(audit.NewService(db), eventBus)
 
 	// Initialize notifier client
 	notifierClient := initNotifierClient(cfg, logger)
@@ -133,6 +144,9 @@ func InitServices(cfg *config.Config, repos *Repositories, rdb *redis.Client, db
 		})
 	}
 
+	// Wire the realtime event bus into the auth service (login/logout events).
+	authService.SetEventBus(eventBus)
+
 	return &Services{
 		Token:         tokenService,
 		KeyProvider:   keyProvider,
@@ -161,6 +175,9 @@ func InitServices(cfg *config.Config, repos *Repositories, rdb *redis.Client, db
 		RetentionPolicyRepo: retention.NewPolicyRepository(db, logger),
 		RetentionRunRepo:    retention.NewRunRepository(db, logger),
 		RetentionScheduler: initRetention(db, logger),
+
+		// Realtime
+		Events: eventBus,
 	}
 }
 

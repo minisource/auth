@@ -16,6 +16,7 @@ import (
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/audit"
 	commonMiddleware "github.com/minisource/go-common/http/middleware"
+	"github.com/minisource/go-common/i18n"
 	"github.com/minisource/go-common/logging"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -40,6 +41,7 @@ type Handlers struct {
 	AdminTools         *handler.AdminToolsHandler
 	AdminRetention     *handler.AdminRetentionHandler
 	WebAuthn           *handler.WebAuthnHandler
+	Realtime           *handler.RealtimeHandler
 }
 
 // Services holds services needed for middleware
@@ -59,6 +61,7 @@ func SetupRouter(cfg *config.Config, handlers *Handlers, services *Services, log
 
 	// Global middleware
 	app.Use(recover.New())
+	app.Use(i18n.Middleware())
 
 	// Request ID — runs before tracing so spans carry request.id
 	app.Use(commonMiddleware.RequestID())
@@ -224,8 +227,10 @@ func registerAPIRoutes(prefix string, app *fiber.App, handlers *Handlers, servic
 	// Account routes — authenticated phone/identity management
 	account := v1.Group("/account", middleware.AuthMiddleware(services.Token))
 	{
-		account.Post("/phone/start", handlers.Auth.PhoneStart)
-		account.Post("/phone/verify", handlers.Auth.PhoneVerify)
+	account.Post("/phone/start", handlers.Auth.PhoneStart)
+	account.Post("/phone/verify", handlers.Auth.PhoneVerify)
+	account.Post("/email/start", handlers.Auth.EmailStart)
+	account.Post("/email/verify", handlers.Auth.EmailVerify)
 	}
 
 	// Admin routes — system_admin and super_admin also have access
@@ -372,6 +377,10 @@ func registerAPIRoutes(prefix string, app *fiber.App, handlers *Handlers, servic
 		adminRetention.Get("/runs", handlers.AdminRetention.ListRuns)
 		adminRetention.Get("/runs/:id", handlers.AdminRetention.GetRun)
 	}
+
+	// Admin realtime events (SSE). The admin group middleware already enforces
+	// admin role; static /events route registered after the param routes.
+	admin.Get("/events", handlers.Realtime.HandleSSE)
 }
 
 // rateLimiter provides per-route IP-based rate limiting

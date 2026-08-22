@@ -43,6 +43,15 @@ const translations: Record<string, Record<Lang, string>> = {
   'header.lang.toEn': { fa: 'Switch to English', en: 'Switch to English' },
   'header.lang.toFa': { fa: 'تغییر به فارسی', en: 'تغییر به فارسی' },
 
+  // ── Realtime (live admin updates) ────────────────
+  'realtime.status.idle': { fa: 'اتصال بلادرنگ غیرفعال است', en: 'Realtime connection idle' },
+  'realtime.status.connecting': { fa: 'در حال اتصال به به‌روزرسانی زنده...', en: 'Connecting to live updates...' },
+  'realtime.status.connected': { fa: 'متصل — به‌روزرسانی زنده فعال است', en: 'Connected — live updates active' },
+  'realtime.status.reconnecting': { fa: 'قطع شد — در حال تلاش مجدد...', en: 'Disconnected — reconnecting...' },
+  'realtime.status.offline': { fa: 'اتصال بلادرنگ در دسترس نیست', en: 'Realtime unavailable' },
+  'realtime.status.live': { fa: 'زنده', en: 'Live' },
+  'realtime.status.sync': { fa: 'همگام', en: 'Sync' },
+
   // ── Auth states ───────────────────────────────────
   'auth.checking': { fa: 'در حال بررسی احراز هویت...', en: 'Checking authentication...' },
   'auth.accessDenied': { fa: 'دسترسی غیرمجاز', en: 'Access Denied' },

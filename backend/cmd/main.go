@@ -69,6 +69,11 @@ func main() {
 		defer services.Notifier.Close()
 	}
 
+	// Close the realtime event bus (stops the Redis relay subscriber).
+	if services.Events != nil {
+		defer services.Events.Close()
+	}
+
 	// Initialize health checkers
 	dbHealth, redisHealth := initializer.InitHealthCheckers(db, rdb)
 

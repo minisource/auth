@@ -33,8 +33,6 @@ export default function LoginPage() {
   const [devInfo, setDevInfo] = useState<{ email: string; password: string } | undefined>(undefined);
 
   useEffect(() => {
-    // Dynamically query seed status from backend.
-    // If admin has changed their default password, showNotice will be false!
     async function checkSeedStatus() {
       try {
         const { api } = await import('@/api');
@@ -60,13 +58,36 @@ export default function LoginPage() {
   const { mutate: sendOTP, isPending: isSendingOTP } = useSendOTP();
   const { mutate: verifyOTP, isPending: isVerifyingOTP } = useVerifyOTP();
 
-  const emailForm = useForm<EmailLoginFormData>({ resolver: zodResolver(emailLoginSchema) });
-  const otpSendForm = useForm<OTPSendFormData>({ resolver: zodResolver(otpSendSchema) });
-  const otpVerifyForm = useForm<OTPVerifyFormData>({ resolver: zodResolver(otpVerifySchema) });
+  const emailForm = useForm<EmailLoginFormData>({
+    resolver: zodResolver(emailLoginSchema),
+    defaultValues: { email: '', password: '' },
+  });
+  const otpSendForm = useForm<OTPSendFormData>({
+    resolver: zodResolver(otpSendSchema),
+    defaultValues: { phone: '' },
+  });
+  const otpVerifyForm = useForm<OTPVerifyFormData>({
+    resolver: zodResolver(otpVerifySchema),
+    defaultValues: { code: '' },
+  });
 
-  const onEmailLogin = (data: EmailLoginFormData) => login({ ...data, rememberMe });
-  const onSendOTP = (data: OTPSendFormData) => sendOTP({ phone: data.phone, type: 'login' }, { onSuccess: () => { setOtpSent(true); setOtpTarget(data.phone); } });
-  const onVerifyOTP = (data: OTPVerifyFormData) => verifyOTP({ target: otpTarget, code: data.code, type: 'login', rememberMe });
+  const onEmailLogin = (data: EmailLoginFormData) => {
+    login({ ...data, rememberMe });
+  };
+  const onSendOTP = (data: OTPSendFormData) => {
+    sendOTP(
+      { phone: data.phone, type: 'login' },
+      {
+        onSuccess: () => {
+          setOtpSent(true);
+          setOtpTarget(data.phone);
+        },
+      }
+    );
+  };
+  const onVerifyOTP = (data: OTPVerifyFormData) => {
+    verifyOTP({ target: otpTarget, code: data.code, type: 'login', rememberMe });
+  };
 
   return (
     <AuthCard
@@ -77,10 +98,46 @@ export default function LoginPage() {
       }
     >
       <LoginForm
-        email={{ value: emailForm.watch('email'), onChange: (v) => emailForm.setValue('email', v), error: emailForm.formState.errors.email?.message }}
-        password={{ value: emailForm.watch('password'), onChange: (v) => emailForm.setValue('password', v), error: emailForm.formState.errors.password?.message }}
-        phone={{ value: otpSendForm.watch('phone'), onChange: (v) => otpSendForm.setValue('phone', v), error: otpSendForm.formState.errors.phone?.message }}
-        otpCode={{ value: otpVerifyForm.watch('code'), onChange: (v) => otpVerifyForm.setValue('code', v), error: otpVerifyForm.formState.errors.code?.message }}
+        email={{
+          value: emailForm.watch('email') || '',
+          onChange: (v) =>
+            emailForm.setValue('email', v, {
+              shouldValidate: true,
+              shouldDirty: true,
+              shouldTouch: true,
+            }),
+          error: emailForm.formState.errors.email?.message,
+        }}
+        password={{
+          value: emailForm.watch('password') || '',
+          onChange: (v) =>
+            emailForm.setValue('password', v, {
+              shouldValidate: true,
+              shouldDirty: true,
+              shouldTouch: true,
+            }),
+          error: emailForm.formState.errors.password?.message,
+        }}
+        phone={{
+          value: otpSendForm.watch('phone') || '',
+          onChange: (v) =>
+            otpSendForm.setValue('phone', v, {
+              shouldValidate: true,
+              shouldDirty: true,
+              shouldTouch: true,
+            }),
+          error: otpSendForm.formState.errors.phone?.message,
+        }}
+        otpCode={{
+          value: otpVerifyForm.watch('code') || '',
+          onChange: (v) =>
+            otpVerifyForm.setValue('code', v, {
+              shouldValidate: true,
+              shouldDirty: true,
+              shouldTouch: true,
+            }),
+          error: otpVerifyForm.formState.errors.code?.message,
+        }}
         otpSent={otpSent}
         otpTarget={otpTarget}
         isLoggingIn={isLoggingIn}

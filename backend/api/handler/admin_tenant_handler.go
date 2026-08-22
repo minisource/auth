@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/minisource/auth/internal/events"
 	"github.com/minisource/auth/internal/models"
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/logging"
@@ -13,6 +14,7 @@ import (
 type AdminTenantHandler struct {
 	tenantService service.TenantService
 	logger        logging.Logger
+	events        *events.Bus
 }
 
 func NewAdminTenantHandler(
@@ -23,6 +25,28 @@ func NewAdminTenantHandler(
 		tenantService: tenantService,
 		logger:        logger,
 	}
+}
+
+// SetEventBus wires the realtime admin event bus so tenant/membership
+// mutations push SSE events to connected admin dashboards. Optional.
+func (h *AdminTenantHandler) SetEventBus(bus *events.Bus) {
+	h.events = bus
+}
+
+// publishTenantEvent emits a sanitized tenant.changed event.
+func (h *AdminTenantHandler) publishTenantEvent(id uuid.UUID) {
+	if h.events == nil {
+		return
+	}
+	h.events.Publish(events.TypeTenantChanged, map[string]any{"id": id})
+}
+
+// publishMembershipEvent emits a sanitized tenant.membership_changed event.
+func (h *AdminTenantHandler) publishMembershipEvent(tenantID uuid.UUID) {
+	if h.events == nil {
+		return
+	}
+	h.events.Publish(events.TypeTenantMembershipChanged, map[string]any{"tenantId": tenantID})
 }
 
 // ListTenants godoc
@@ -147,6 +171,7 @@ func (h *AdminTenantHandler) CreateTenant(c *fiber.Ctx) error {
 		}
 	}
 
+	h.publishTenantEvent(tenant.ID)
 	return response.Created(c, tenant)
 }
 
@@ -216,6 +241,7 @@ func (h *AdminTenantHandler) UpdateTenant(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishTenantEvent(id)
 	return response.New().Data(tenant).Send(c)
 }
 
@@ -238,6 +264,7 @@ func (h *AdminTenantHandler) DeleteTenant(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishTenantEvent(id)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -265,6 +292,7 @@ func (h *AdminTenantHandler) ToggleTenantStatus(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishTenantEvent(id)
 	return response.New().Data(fiber.Map{"status": status}).Send(c)
 }
 
@@ -335,6 +363,7 @@ func (h *AdminTenantHandler) AddTenantMember(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishMembershipEvent(tenantID)
 	return response.New().Data(fiber.Map{"message": "Member added successfully"}).Send(c)
 }
 
@@ -377,6 +406,7 @@ func (h *AdminTenantHandler) UpdateTenantMember(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishMembershipEvent(tenantID)
 	return response.New().Data(fiber.Map{"message": "Member updated successfully"}).Send(c)
 }
 
@@ -404,6 +434,7 @@ func (h *AdminTenantHandler) RemoveTenantMember(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishMembershipEvent(tenantID)
 	return response.New().Data(fiber.Map{"message": "Member removed successfully"}).Send(c)
 }
 
@@ -472,6 +503,7 @@ func (h *AdminTenantHandler) InviteTenantMember(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishMembershipEvent(tenantID)
 	return response.Created(c, invitation)
 }
 
@@ -494,5 +526,8 @@ func (h *AdminTenantHandler) RevokeTenantInvitation(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	// No tenant ID is available here (the invitation row is looked up by the
+	// service); other admins' invitation lists refresh on the next tenant
+	// event. The initiating tab already refreshes via its own mutation.
 	return response.New().Data(fiber.Map{"message": "Invitation revoked"}).Send(c)
 }

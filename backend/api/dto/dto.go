@@ -74,11 +74,16 @@ type VerifyTwoFactorRequest struct {
 
 // === User DTOs ===
 
+// UpdateProfileRequest is the authenticated profile-update payload.
+// Email is intentionally absent: it can only be changed through the verified
+// flow (POST /account/email/start + POST /account/email/verify) so an email is
+// never stored without the owner proving control of it.
 type UpdateProfileRequest struct {
 	FirstName string  `json:"firstName,omitempty"`
 	LastName  string  `json:"lastName,omitempty"`
 	Avatar    string  `json:"avatar,omitempty"`
 	Birthday  *string `json:"birthday,omitempty"`
+	Username  string  `json:"username,omitempty"`
 }
 
 type ChangePasswordRequest struct {
@@ -294,4 +299,17 @@ type PhoneStartRequest struct {
 type PhoneVerifyRequest struct {
 	Phone string `json:"phone" validate:"required"`
 	Code  string `json:"code" validate:"required,len=6"`
+}
+
+// === Account Email DTOs ===
+
+// EmailStartRequest is sent by an authenticated user to add/change an email address.
+type EmailStartRequest struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
+// EmailVerifyRequest is sent by an authenticated user to verify OTP and set the email.
+type EmailVerifyRequest struct {
+	Email string `json:"email" validate:"required,email"`
+	Code  string `json:"code" validate:"required"`
 }

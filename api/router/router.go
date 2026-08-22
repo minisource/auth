@@ -17,6 +17,7 @@ import (
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/audit"
 	commonMiddleware "github.com/minisource/go-common/http/middleware"
+	"github.com/minisource/go-common/i18n"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"gorm.io/gorm"
 )

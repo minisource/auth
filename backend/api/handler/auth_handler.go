@@ -394,13 +394,25 @@ func handleAuthError(c *fiber.Ctx, err error, logger logging.Logger) error {
 	// Handle legacy errors
 	switch err {
 	case service.ErrOAuthFailed:
-		return response.Unauthorized(c, i18n.T(ctx, "errors.oauth_failed"))
+		return response.Unauthorized(c, translateErr(ctx, "errors.oauth_failed", "Google sign-in failed"))
 	case service.ErrOAuthNotConfigured:
-		return response.ServiceUnavailable(c, i18n.T(ctx, "errors.oauth_not_configured"))
+		return response.ServiceUnavailable(c, translateErr(ctx, "errors.oauth_not_configured", "Google sign-in is currently unavailable"))
 	case service.ErrOAuthUnlinkFailed:
-		return response.BadRequest(c, "OAUTH_UNLINK_FAILED", i18n.T(ctx, "errors.oauth_unlink_failed"))
+		return response.BadRequest(c, "OAUTH_UNLINK_FAILED", translateErr(ctx, "errors.oauth_unlink_failed", "Failed to unlink Google account"))
 	case service.ErrInvalidCredentials:
 		return response.Unauthorized(c, i18n.T(ctx, "errors.invalid_credentials"))
+	case service.ErrInvalidEmail:
+		return response.BadRequest(c, "INVALID_EMAIL", i18n.T(ctx, "errors.invalid_email"))
+	case service.ErrInvalidUsername:
+		msg := i18n.T(ctx, "errors.invalid_username")
+		if msg == "errors.invalid_username" { // key not in compiled bundle — bilingual fallback
+			if i18n.GetTranslator().GetLangFromContext(ctx) == "fa" {
+				msg = "نام کاربری نامعتبر است (۳ تا ۳۰ کاراکتر: حروف، اعداد، نقطه، زیرخط، خط تیره)"
+			} else {
+				msg = "Invalid username (3-30 chars: letters, digits, dot, underscore, hyphen)"
+			}
+		}
+		return response.BadRequest(c, "INVALID_USERNAME", msg)
 	case service.ErrUserDisabled:
 		return response.Forbidden(c, i18n.T(ctx, "errors.user_disabled"))
 	case service.ErrUserLocked:
@@ -425,6 +437,14 @@ func handleAuthError(c *fiber.Ctx, err error, logger logging.Logger) error {
 		return response.Unauthorized(c, i18n.T(ctx, "errors.refresh_token_invalid"))
 	case service.ErrRegistrationDisabled:
 		return response.Forbidden(c, i18n.T(ctx, "errors.registration_disabled"))
+	case service.ErrNoPasskeys, service.ErrPasskeyNotFound:
+		return response.NotFound(c, i18n.T(ctx, "errors.no_passkeys"))
+	case service.ErrPasskeyExists:
+		return response.Conflict(c, i18n.T(ctx, "errors.passkey_exists"))
+	case service.ErrWebAuthnChallenge:
+		return response.Unauthorized(c, i18n.T(ctx, "errors.webauthn_challenge"))
+	case service.ErrWebAuthnFailed:
+		return response.InternalError(c, i18n.T(ctx, "errors.webauthn_failed"))
 	default:
 		// Log unhandled errors for debugging
 		logger.Error(logging.General, logging.Api, "Unhandled error in auth handler", map[logging.ExtraKey]interface{}{
@@ -802,6 +822,86 @@ func (h *AuthHandler) PhoneVerify(c *fiber.Ctx) error {
 	return response.OK(c, toUserInfo(user))
 }
 
+// EmailStart godoc
+// @Summary Initiate email address verification
+// @Description Initiate email verification for current authenticated user. Checks duplicate before sending OTP.
+// @Tags Account
+// @Accept json
+// @Produce json
+// @Param request body dto.EmailStartRequest true "Email address"
+// @Security BearerAuth
+// @Success 200 {object} dto.MessageResponse
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Router /account/email/start [post]
+func (h *AuthHandler) EmailStart(c *fiber.Ctx) error {
+	userID := getUserIDFromContext(c)
+	if userID == uuid.Nil {
+		return response.Unauthorized(c, "Authentication required")
+	}
+
+	var req dto.EmailStartRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "INVALID_REQUEST", i18n.T(c.Context(), "errors.invalid_request"))
+	}
+
+	otpResp, err := h.authService.StartEmailVerification(c.Context(), userID, req.Email)
+	if err != nil {
+		return handleAuthError(c, err, h.logger)
+	}
+
+	// If email already verified, return early
+	if otpResp.ExpiresIn == 0 {
+		msg := i18n.T(c.Context(), "auth.email_already_verified")
+		if msg == "auth.email_already_verified" {
+			msg = "Email address is already verified"
+		}
+		return response.OK(c, map[string]interface{}{
+			"message":    msg,
+			"alreadySet": true,
+		})
+	}
+
+	return response.OK(c, map[string]interface{}{
+		"message":   i18n.T(c.Context(), "auth.otp_sent"),
+		"expiresAt": otpResp.ExpiresAt,
+		"expiresIn": otpResp.ExpiresIn,
+	})
+}
+
+// EmailVerify godoc
+// @Summary Verify email address
+// @Description Verify OTP and set email address for current authenticated user.
+// @Tags Account
+// @Accept json
+// @Produce json
+// @Param request body dto.EmailVerifyRequest true "Email and OTP code"
+// @Security BearerAuth
+// @Success 200 {object} dto.UserInfo
+// @Failure 400 {object} dto.ErrorResponse
+// @Failure 401 {object} dto.ErrorResponse
+// @Failure 409 {object} dto.ErrorResponse
+// @Router /account/email/verify [post]
+func (h *AuthHandler) EmailVerify(c *fiber.Ctx) error {
+	userID := getUserIDFromContext(c)
+	if userID == uuid.Nil {
+		return response.Unauthorized(c, "Authentication required")
+	}
+
+	var req dto.EmailVerifyRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "INVALID_REQUEST", i18n.T(c.Context(), "errors.invalid_request"))
+	}
+
+	user, err := h.authService.VerifyEmail(c.Context(), userID, req.Email, req.Code)
+	if err != nil {
+		return handleAuthError(c, err, h.logger)
+	}
+
+	return response.OK(c, toUserInfo(user))
+}
+
 // VerifyTwoFactor godoc
 // @Summary Complete 2FA login
 // @Description Verify a TOTP code with a challenge token to finish login
@@ -836,4 +936,14 @@ func (h *AuthHandler) VerifyTwoFactor(c *fiber.Ctx) error {
 func (h *AuthHandler) GetSeedStatus(c *fiber.Ctx) error {
 	status := h.authService.GetSeedStatus(c.Context())
 	return response.New().Data(status).Send(c)
+}
+
+// translateErr returns the translated message for key, or fallback when the
+// translation is missing (so raw i18n keys never leak to clients).
+func translateErr(ctx interface{}, key, fallback string) string {
+	msg := i18n.T(ctx, key)
+	if msg == key {
+		return fallback
+	}
+	return msg
 }

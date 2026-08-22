@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/minisource/auth/api/dto"
+	"github.com/minisource/auth/internal/events"
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/logging"
 	"github.com/minisource/go-common/response"
@@ -13,6 +14,7 @@ import (
 type RoleHandler struct {
 	roleService *service.RoleService
 	logger      logging.Logger
+	events      *events.Bus
 }
 
 func NewRoleHandler(
@@ -23,6 +25,28 @@ func NewRoleHandler(
 		roleService: roleService,
 		logger:      logger,
 	}
+}
+
+// SetEventBus wires the realtime admin event bus so role/permission mutations
+// push SSE events to connected admin dashboards. Optional.
+func (h *RoleHandler) SetEventBus(bus *events.Bus) {
+	h.events = bus
+}
+
+// publishRoleEvent emits a sanitized role.changed event.
+func (h *RoleHandler) publishRoleEvent(id uuid.UUID) {
+	if h.events == nil {
+		return
+	}
+	h.events.Publish(events.TypeRoleChanged, map[string]any{"id": id})
+}
+
+// publishPermissionEvent emits a sanitized permission.changed event.
+func (h *RoleHandler) publishPermissionEvent(id uuid.UUID) {
+	if h.events == nil {
+		return
+	}
+	h.events.Publish(events.TypePermissionChanged, map[string]any{"id": id})
 }
 
 // === Role Endpoints ===
@@ -102,6 +126,7 @@ func (h *RoleHandler) CreateRole(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishRoleEvent(role.ID)
 	return response.Created(c, role)
 }
 
@@ -138,6 +163,7 @@ func (h *RoleHandler) UpdateRole(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishRoleEvent(id)
 	return c.JSON(role)
 }
 
@@ -161,6 +187,7 @@ func (h *RoleHandler) DeleteRole(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishRoleEvent(id)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -257,6 +284,7 @@ func (h *RoleHandler) CreatePermission(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishPermissionEvent(perm.ID)
 	return response.Created(c, perm)
 }
 
@@ -294,6 +322,7 @@ func (h *RoleHandler) UpdatePermission(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishPermissionEvent(id)
 	return c.JSON(perm)
 }
 
@@ -316,6 +345,7 @@ func (h *RoleHandler) DeletePermission(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishPermissionEvent(id)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -344,6 +374,7 @@ func (h *RoleHandler) AssignPermissionToRole(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishRoleEvent(roleID)
 	return c.JSON(dto.MessageResponse{
 		Message: "Permission assigned to role",
 	})
@@ -374,6 +405,7 @@ func (h *RoleHandler) RemovePermissionFromRole(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishRoleEvent(roleID)
 	return c.JSON(dto.MessageResponse{
 		Message: "Permission removed from role",
 	})

@@ -196,6 +196,8 @@ type UpdateProfileRequest struct {
 	LastName  string
 	Avatar    string
 	Birthday  *string
+	Email     string
+	Username  string
 }
 
 // UpdateProfile updates user profile
@@ -216,6 +218,22 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID uuid.UUID, req *
 	}
 	if req.Birthday != nil {
 		user.Birthday = req.Birthday
+	}
+
+	// Email is intentionally NOT settable here — it must be added through the
+	// verified flow (/account/email/start + /account/email/verify) so an email
+	// is only ever stored after the owner proves control of it.
+	//
+	// Username stays editable but is validated (format) and uniqueness-checked.
+	if req.Username != "" {
+		if !ValidateUsername(req.Username) {
+			return nil, ErrInvalidUsername
+		}
+		existing, err := s.userRepo.GetByUsername(ctx, req.Username)
+		if err == nil && existing != nil && existing.ID != userID {
+			return nil, ErrUsernameExists
+		}
+		user.Username = req.Username
 	}
 
 	if err := s.userRepo.Update(ctx, user); err != nil {

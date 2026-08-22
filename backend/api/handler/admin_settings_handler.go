@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/minisource/auth/internal/events"
 	"github.com/minisource/auth/internal/repository"
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/logging"
@@ -13,6 +14,7 @@ type AdminSettingsHandler struct {
 	settingsService *service.SettingsService
 	settingsRepo    repository.SettingRepository
 	logger          logging.Logger
+	events          *events.Bus
 }
 
 func NewAdminSettingsHandler(
@@ -25,6 +27,21 @@ func NewAdminSettingsHandler(
 		settingsRepo:    settingsRepo,
 		logger:          logger,
 	}
+}
+
+// SetEventBus wires the realtime admin event bus so settings mutations push
+// SSE events to connected admin dashboards. Optional.
+func (h *AdminSettingsHandler) SetEventBus(bus *events.Bus) {
+	h.events = bus
+}
+
+// publishSettingsChanged emits a sanitized settings.changed event. Only the
+// updated key names are included — never setting values (some are secrets).
+func (h *AdminSettingsHandler) publishSettingsChanged(keys []string) {
+	if h.events == nil {
+		return
+	}
+	h.events.Publish(events.TypeSettingsChanged, map[string]any{"keys": keys})
 }
 
 // GetSettings godoc
@@ -156,6 +173,7 @@ func (h *AdminSettingsHandler) UpdateSettings(c *fiber.Ctx) error {
 	// Refresh cache
 	h.settingsService.RefreshCache(c.Context())
 
+	h.publishSettingsChanged(updated)
 	return response.New().Data(fiber.Map{
 		"message":      "Settings updated successfully",
 		"updatedCount": len(updated),
@@ -200,6 +218,7 @@ func (h *AdminSettingsHandler) UpdateSettingsByCategory(c *fiber.Ctx) error {
 
 	h.settingsService.RefreshCache(c.Context())
 
+	h.publishSettingsChanged(updated)
 	return response.New().Data(fiber.Map{
 		"message":      "Settings updated successfully",
 		"updatedCount": len(updated),

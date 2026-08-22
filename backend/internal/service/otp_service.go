@@ -99,11 +99,15 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, userID uuid.UUID, t
 				"target": target,
 				"type":   otpType,
 			})
-			// Check if it's a notifier unavailable error
-			if errors.Is(err, ErrNotifierUnavailable) {
-				return nil, NewNotifierUnavailableError()
-			}
-			if strings.Contains(err.Error(), "notifier") || strings.Contains(err.Error(), "SMS") {
+			// Check if it's a notifier unavailable error (no active provider,
+			// notifier down, or a generic unavailable message from the SDK).
+			lower := strings.ToLower(err.Error())
+			if errors.Is(err, ErrNotifierUnavailable) ||
+				strings.Contains(lower, "notifier") ||
+				strings.Contains(lower, "sms") ||
+				strings.Contains(lower, "email") ||
+				strings.Contains(lower, "no active provider") ||
+				strings.Contains(lower, "unavailable") {
 				return nil, NewNotifierUnavailableError()
 			}
 			return nil, err
@@ -161,6 +165,8 @@ func (s *OTPService) sendOTP(ctx context.Context, target, code, otpType string) 
 			Phone:    target,
 			Template: "verify",
 			Data:     map[string]string{"code": code},
+			Subject:  s.getEmailSubject(otpType),
+			Body:     s.formatOTPMessage(code, otpType),
 		})
 		if err != nil {
 			s.logger.Error(logging.General, logging.ExternalService, "SendSMSWithData failed", map[logging.ExtraKey]interface{}{
@@ -179,7 +185,7 @@ func (s *OTPService) sendOTP(ctx context.Context, target, code, otpType string) 
 				"target": target,
 			})
 			message := s.formatOTPMessage(code, otpType)
-			_, err := s.notifierClient.SendEmail(ctx, "", target, "Verification Code", message)
+			_, err := s.notifierClient.SendEmail(ctx, "", target, s.getEmailSubject(otpType), message)
 			return err
 		}
 		s.logger.Info(logging.General, logging.ExternalService, "Detected phone target, sending via SMS", map[logging.ExtraKey]interface{}{
@@ -190,6 +196,8 @@ func (s *OTPService) sendOTP(ctx context.Context, target, code, otpType string) 
 			Phone:    target,
 			Template: "verify",
 			Data:     map[string]string{"code": code},
+			Subject:  s.getEmailSubject(otpType),
+			Body:     s.formatOTPMessage(code, otpType),
 		})
 		return err
 	}

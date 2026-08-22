@@ -4,6 +4,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/minisource/auth/api/dto"
+	"github.com/minisource/auth/internal/events"
 	"github.com/minisource/auth/internal/service"
 	"github.com/minisource/go-common/logging"
 	"github.com/minisource/go-common/response"
@@ -13,6 +14,7 @@ import (
 type AdminUserHandler struct {
 	userService *service.UserService
 	logger      logging.Logger
+	events      *events.Bus
 }
 
 func NewAdminUserHandler(
@@ -23,6 +25,20 @@ func NewAdminUserHandler(
 		userService: userService,
 		logger:      logger,
 	}
+}
+
+// SetEventBus wires the realtime admin event bus so user mutations push SSE
+// events to connected admin dashboards. Optional.
+func (h *AdminUserHandler) SetEventBus(bus *events.Bus) {
+	h.events = bus
+}
+
+// publishUserEvent emits a sanitized user event (IDs only, never PII).
+func (h *AdminUserHandler) publishUserEvent(typ string, id uuid.UUID) {
+	if h.events == nil {
+		return
+	}
+	h.events.Publish(typ, map[string]any{"id": id})
 }
 
 // ListUsers godoc
@@ -138,6 +154,7 @@ func (h *AdminUserHandler) CreateUser(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishUserEvent(events.TypeUserCreated, user.ID)
 	return response.Created(c, user)
 }
 
@@ -178,6 +195,7 @@ func (h *AdminUserHandler) UpdateUser(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishUserEvent(events.TypeUserUpdated, id)
 	return c.JSON(user)
 }
 
@@ -200,6 +218,7 @@ func (h *AdminUserHandler) DeleteUser(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishUserEvent(events.TypeUserUpdated, id)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -226,6 +245,7 @@ func (h *AdminUserHandler) ToggleUserStatus(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishUserEvent(events.TypeUserStatusChanged, id)
 	return c.JSON(dto.MessageResponse{
 		Message: "User status updated",
 	})
@@ -250,6 +270,7 @@ func (h *AdminUserHandler) UnlockUser(c *fiber.Ctx) error {
 		return handleAuthError(c, err, h.logger)
 	}
 
+	h.publishUserEvent(events.TypeUserStatusChanged, id)
 	return c.JSON(dto.MessageResponse{
 		Message: "User unlocked",
 	})

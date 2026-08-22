@@ -288,7 +288,7 @@ func (s *TokenService) GenerateAccessToken(user *models.User, tenantID *uuid.UUI
 	claims := TokenClaims{
 		UserID:      user.ID.String(),
 		TenantID:    tenantIDStr,
-		Email:       user.Email,
+		Email:       CleanEmail(user.Email),
 		Username:    user.Username,
 		Roles:       roles,
 		Permissions: permissions,

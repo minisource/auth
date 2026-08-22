@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/minisource/auth/config"
 	"github.com/minisource/auth/internal/models"
+	"github.com/minisource/auth/internal/events"
 	"github.com/minisource/auth/internal/repository"
 	"github.com/minisource/go-common/logging"
 	"github.com/minisource/go-common/sensitive"
@@ -28,6 +29,7 @@ type AuthService struct {
 	otpService       *OTPService
 	settingsService  *SettingsService
 	logger           logging.Logger
+	events           *events.Bus
 }
 
 func NewAuthService(
@@ -56,6 +58,44 @@ func NewAuthService(
 		settingsService:  settingsService,
 		logger:           logger,
 	}
+}
+
+// SetEventBus wires the realtime admin event bus so login/logout outcomes
+// are pushed to connected admin dashboards. Optional — nil is safe.
+func (s *AuthService) SetEventBus(bus *events.Bus) {
+	s.events = bus
+}
+
+// publishLoginEvent emits a sanitized login outcome event. Only safe fields:
+// user/session IDs, action, success flag, and a safe reason string — never
+// passwords, tokens, OTP codes, or raw request content.
+func (s *AuthService) publishLoginEvent(action string, userID, sessionID uuid.UUID, success bool, reason string) {
+	if s.events == nil {
+		return
+	}
+	eventType := ""
+	switch action {
+	case models.LoginActionLogin, models.LoginActionOAuthLogin, models.LoginActionPasskeyLogin:
+		if success {
+			eventType = events.TypeLoginCompleted
+		}
+	case models.LoginActionLoginFailed, models.LoginActionAccountLocked:
+		if !success {
+			eventType = events.TypeLoginFailed
+		}
+	case models.LoginActionLogout:
+		eventType = events.TypeSessionRevoked
+	}
+	if eventType == "" {
+		return
+	}
+	s.events.Publish(eventType, map[string]any{
+		"userId":    userID,
+		"sessionId": sessionID,
+		"action":    action,
+		"success":   success,
+		"reason":    reason,
+	})
 }
 
 // LoginRequest represents login request data
@@ -307,6 +347,18 @@ func (s *AuthService) SendOTP(ctx context.Context, req *SendOTPRequest) (*SendOT
 	return s.otpService.GenerateAndSendOTP(ctx, userID, target, req.Type)
 }
 
+// CleanEmail hides synthetic phone-registration placeholders
+// (phone_...@phone.local) so clients never treat an auto-generated value as a
+// real email. The placeholder stays in the DB to satisfy the unique index on
+// empty emails, but is blanked everywhere it reaches a user (JWT claims,
+// UserInfo responses, /me).
+func CleanEmail(email string) string {
+	if strings.HasSuffix(email, "@phone.local") {
+		return ""
+	}
+	return email
+}
+
 // autoRegisterByPhone creates a new user with just a phone number
 func (s *AuthService) autoRegisterByPhone(ctx context.Context, phone, firstName, lastName string) (*models.User, error) {
 	if !s.settingsService.IsRegistrationAllowed(ctx) {
@@ -484,8 +536,11 @@ func (s *AuthService) RefreshTokens(ctx context.Context, refreshToken string) (*
 		return nil, ErrUserDisabled
 	}
 
-	// Revoke old refresh token
-	s.refreshTokenRepo.Revoke(ctx, storedToken.Token)
+	// Revoke old refresh token. Must pass the raw token string from the request:
+	// models.RefreshToken.Token is tagged `json:"-"`, so after a Redis
+	// round-trip storedToken.Token is empty and Revoke("") is a silent no-op —
+	// which left every rotated refresh token valid for its full 7-day TTL.
+	s.refreshTokenRepo.Revoke(ctx, refreshToken)
 
 	// Create new session
 	sessionID, _ := uuid.Parse(claims.SessionID)
@@ -597,7 +652,7 @@ func (s *AuthService) createTokensForSession(ctx context.Context, user *models.U
 		TokenType:    "Bearer",
 		User: &UserInfo{
 			ID:            user.ID.String(),
-			Email:         user.Email,
+			Email:         CleanEmail(user.Email),
 			Username:      user.Username,
 			FirstName:     user.FirstName,
 			LastName:      user.LastName,
@@ -637,6 +692,7 @@ func (s *AuthService) logLoginAttempt(ctx context.Context, userID, sessionID uui
 		ErrorMsg:  errorMsg,
 	}
 	s.loginLogRepo.Create(ctx, log)
+	s.publishLoginEvent(action, userID, sessionID, success, errorMsg)
 }
 
 func extractRoleNames(roles []models.Role) []string {
@@ -861,6 +917,93 @@ func (s *AuthService) VerifyPhone(ctx context.Context, userID uuid.UUID, phone, 
 	s.logger.Info(logging.General, logging.Api, "Phone added and verified", map[logging.ExtraKey]interface{}{
 		"userId": userID,
 		"phone":  phone,
+	})
+
+	return s.userRepo.GetWithRoles(ctx, userID)
+}
+
+// StartEmailVerification initiates email verification for an authenticated user.
+// It checks that the email isn't already taken by another user before sending OTP.
+func (s *AuthService) StartEmailVerification(ctx context.Context, userID uuid.UUID, email string) (*SendOTPResponse, error) {
+	email = NormalizeEmail(email)
+	if email == "" || !ValidateEmail(email) {
+		return nil, ErrInvalidEmail
+	}
+
+	// Check duplicate: reject if email belongs to ANOTHER user
+	existing, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		if existing.ID != userID {
+			s.logger.Warn(logging.Validation, logging.Api, "Email already taken by another user", map[logging.ExtraKey]interface{}{
+				"email":          email,
+				"requestingUser": userID,
+				"existingUser":   existing.ID,
+			})
+			return nil, ErrEmailExists
+		}
+		// Email already belongs to this user and is verified -> return already-verified state
+		if existing.EmailVerified {
+			s.logger.Info(logging.General, logging.Api, "Email already verified for this user", map[logging.ExtraKey]interface{}{
+				"userId": userID,
+				"email":  email,
+			})
+			return &SendOTPResponse{
+				ExpiresAt: time.Now(),
+				ExpiresIn: 0,
+			}, nil
+		}
+	}
+
+	// Generate and send OTP for email_verification
+	return s.otpService.GenerateAndSendOTP(ctx, userID, email, models.OTPTypeEmailVerification)
+}
+
+// VerifyEmail completes email verification for an authenticated user.
+// It validates the OTP, re-checks duplicate (race-safe), and sets the email.
+func (s *AuthService) VerifyEmail(ctx context.Context, userID uuid.UUID, email, code string) (*models.User, error) {
+	email = NormalizeEmail(email)
+	if email == "" || !ValidateEmail(email) {
+		return nil, ErrInvalidEmail
+	}
+
+	// Verify OTP
+	if err := s.otpService.VerifyOTP(ctx, email, code, models.OTPTypeEmailVerification); err != nil {
+		return nil, err
+	}
+
+	// Re-check duplicate right before commit (race-safe)
+	existing, err := s.userRepo.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.ID != userID {
+		s.logger.Warn(logging.Validation, logging.Api, "Email taken by another user during verification", map[logging.ExtraKey]interface{}{
+			"email":          email,
+			"requestingUser": userID,
+			"existingUser":   existing.ID,
+		})
+		return nil, ErrEmailExists
+	}
+
+	// Get current user
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil || user == nil {
+		return nil, ErrUserNotFound
+	}
+
+	// Set email and mark verified
+	user.Email = email
+	user.EmailVerified = true
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+
+	s.logger.Info(logging.General, logging.Api, "Email added and verified", map[logging.ExtraKey]interface{}{
+		"userId": userID,
+		"email":  email,
 	})
 
 	return s.userRepo.GetWithRoles(ctx, userID)

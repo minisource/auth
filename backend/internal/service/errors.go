@@ -57,6 +57,8 @@ var (
 	ErrUserDisabled           = errors.New("user account is disabled")
 	ErrUserLocked             = errors.New("user account is locked")
 	ErrInvalidCredentials     = errors.New("invalid email or password")
+	ErrInvalidEmail           = errors.New("invalid email address")
+	ErrInvalidUsername        = errors.New("invalid username")
 	ErrEmailExists            = errors.New("email already exists")
 	ErrPhoneExists            = errors.New("phone number already exists")
 	ErrUsernameExists         = errors.New("username already exists")

@@ -87,6 +87,7 @@ func (h *UserHandler) UpdateProfile(c *fiber.Ctx) error {
 		LastName:  req.LastName,
 		Avatar:    req.Avatar,
 		Birthday:  req.Birthday,
+		Username:  req.Username,
 	})
 	if err != nil {
 		return handleAuthError(c, err, h.logger)
@@ -497,7 +498,7 @@ func toUserInfo(user interface{}) *dto.UserInfo {
 		}
 		return &dto.UserInfo{
 			ID:            u.ID.String(),
-			Email:         u.Email,
+			Email:         service.CleanEmail(u.Email),
 			Username:      u.Username,
 			FirstName:     u.FirstName,
 			LastName:      u.LastName,
@@ -523,7 +524,7 @@ func toUserInfo(user interface{}) *dto.UserInfo {
 	}:
 		return &dto.UserInfo{
 			ID:            u.GetID(),
-			Email:         u.GetEmail(),
+			Email:         service.CleanEmail(u.GetEmail()),
 			Username:      u.GetUsername(),
 			FirstName:     u.GetFirstName(),
 			LastName:      u.GetLastName(),

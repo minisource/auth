@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/minisource/auth/internal/events"
 	"github.com/minisource/auth/internal/repository"
 	"github.com/minisource/go-common/logging"
 	"github.com/minisource/go-common/response"
@@ -13,6 +14,7 @@ type AdminSessionHandler struct {
 	sessionRepo       repository.SessionRepository
 	refreshTokenRepo  repository.RefreshTokenRepository
 	logger            logging.Logger
+	events            *events.Bus
 }
 
 func NewAdminSessionHandler(
@@ -25,6 +27,23 @@ func NewAdminSessionHandler(
 		refreshTokenRepo: refreshTokenRepo,
 		logger:           logger,
 	}
+}
+
+// SetEventBus wires the realtime admin event bus so session revocations push
+// SSE events to connected admin dashboards. Optional.
+func (h *AdminSessionHandler) SetEventBus(bus *events.Bus) {
+	h.events = bus
+}
+
+// publishSessionRevoked emits a sanitized session.revoked event.
+func (h *AdminSessionHandler) publishSessionRevoked(sessionID, userID uuid.UUID) {
+	if h.events == nil {
+		return
+	}
+	h.events.Publish(events.TypeSessionRevoked, map[string]any{
+		"sessionId": sessionID,
+		"userId":    userID,
+	})
 }
 
 // ListAllSessions godoc
@@ -147,6 +166,7 @@ func (h *AdminSessionHandler) RevokeSession(c *fiber.Ctx) error {
 		}
 	}
 
+	h.publishSessionRevoked(id, session.UserID)
 	return response.New().Data(fiber.Map{"message": "Session revoked successfully"}).Send(c)
 }
 
@@ -190,5 +210,6 @@ func (h *AdminSessionHandler) RevokeUserAllSessions(c *fiber.Ctx) error {
 		})
 	}
 
+	h.publishSessionRevoked(uuid.Nil, userID)
 	return response.New().Data(fiber.Map{"message": "All sessions revoked for user"}).Send(c)
 }

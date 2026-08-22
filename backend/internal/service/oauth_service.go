@@ -422,7 +422,7 @@ func (s *OAuthService) createOAuthSession(ctx context.Context, user *models.User
 		TokenType:    "Bearer",
 		User: &UserInfo{
 			ID:            user.ID.String(),
-			Email:         user.Email,
+			Email:         CleanEmail(user.Email),
 			Username:      user.Username,
 			FirstName:     user.FirstName,
 			LastName:      user.LastName,

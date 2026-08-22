@@ -20,34 +20,32 @@ func NewNoopNotifierClient(logger logging.Logger) *NoopNotifierClient {
 	return &NoopNotifierClient{logger: logger}
 }
 
-// SendSMS logs but doesn't send
+// SendSMS reports that sending is unavailable (no real provider configured)
 func (c *NoopNotifierClient) SendSMS(ctx context.Context, userID, phone, body string) (string, error) {
-	c.logger.Info(logging.General, logging.Api, "Notifier disabled - SMS not sent", map[logging.ExtraKey]interface{}{
-		"userId":  userID,
-		"phone":   phone,
-		"message": body,
+	c.logger.Warn(logging.General, logging.Api, "Notifier disabled - SMS not sent", map[logging.ExtraKey]interface{}{
+		"userId": userID,
+		"phone":  phone,
 	})
-	return "noop-sms-id", nil
+	return "", ErrNotifierUnavailable
 }
 
-// SendSMSWithData logs but doesn't send
+// SendSMSWithData reports that sending is unavailable (no real provider configured)
 func (c *NoopNotifierClient) SendSMSWithData(ctx context.Context, req *notifier.SMSRequest) (string, error) {
-	c.logger.Info(logging.General, logging.Api, "Notifier disabled - SMS template not sent", map[logging.ExtraKey]interface{}{
+	c.logger.Warn(logging.General, logging.Api, "Notifier disabled - SMS template not sent", map[logging.ExtraKey]interface{}{
 		"phone":    req.Phone,
 		"template": req.Template,
-		"data":     req.Data,
 	})
-	return "noop-sms-template-id", nil
+	return "", ErrNotifierUnavailable
 }
 
-// SendEmail logs but doesn't send
+// SendEmail reports that sending is unavailable (no real provider configured)
 func (c *NoopNotifierClient) SendEmail(ctx context.Context, userID, email, subject, body string) (string, error) {
-	c.logger.Info(logging.General, logging.Api, "Notifier disabled - Email not sent", map[logging.ExtraKey]interface{}{
+	c.logger.Warn(logging.General, logging.Api, "Notifier disabled - Email not sent", map[logging.ExtraKey]interface{}{
 		"userId":  userID,
 		"email":   email,
 		"subject": subject,
 	})
-	return "noop-email-id", nil
+	return "", ErrNotifierUnavailable
 }
 
 // Close is a no-op
